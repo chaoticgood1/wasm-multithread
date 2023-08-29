@@ -17,9 +17,14 @@ wasm-bindgen --out-name ironverse-editor --out-dir assets/wasm --target web targ
 '''
 
 
+# [tasks.client]
+# script = '''
+# basic-http-server .
+# '''
+
 [tasks.client]
 script = '''
-basic-http-server .
+./server.py
 '''
 
 [tasks.web-wasm-bindgen-cli]
