@@ -1,22 +1,38 @@
 [package]
 name = "wasm_multithread"
 version = "0.1.0"
-authors = ["The wasm-mt Developers"]
-edition = "2018"
+edition = "2021"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [
+  "crates/*"
+]
+
 
 [dependencies]
-wasm-mt = "0.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_closure = "0.3"
+bevy = "0.10.1"
+cfg-if = "1.0.0"
 
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+multithread = { path = "crates/multithread" }
+
+
 
 [dependencies.web-sys]
-version = "0.3"
+version = "0.3.61"
 features = [
-  'console',
+  "Document",
+  "HtmlElement", 
+  "ErrorEvent", 
+  "Window",
+  "Url",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futures-lite = "1.11.3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+flume = "0.10.14"
+js-sys = "0.3"
+wasm-bindgen = "0.2.87"
+wasm-bindgen-futures = "0.4.19"
