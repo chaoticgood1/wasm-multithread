@@ -18,11 +18,16 @@ fn main() {
       ..default()
     }));
   
-  cfg_if! {
-    if #[cfg(target_arch = "wasm32")] {
-      multithread::run();
-    }
-  }
+  // cfg_if! {
+    // if #[cfg(target_arch = "wasm32")] {
+    //   // multithread::run();
+    //   app
+    //     .add_plugin(multithread::CustomPlugin);
+    // }
+  // }
+
+  app
+    .add_plugin(multithread::CustomPlugin);
 
   app.run();
 

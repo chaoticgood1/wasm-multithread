@@ -50,6 +50,10 @@ async function init_wasm_in_worker() {
 
     // Set callback to handle messages passed to the worker.
     self.onmessage = async event => {
+        let res = num_eval.get_voxel();
+        console.log("octree.data: " + res);
+
+        console.log("data: " + event.data);
         // By using methods of a struct as reaction to messages passed to the
         // worker, we can preserve our state between messages.
         var worker_result = num_eval.is_even(event.data);

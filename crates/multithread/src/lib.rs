@@ -24,6 +24,33 @@ pub fn run() {
   // for i in rx.iter() {
   //   info!("recieve {:?}", i);
   // }
+  
+}
+
+pub struct CustomPlugin;
+impl Plugin for CustomPlugin {
+  fn build(&self, app: &mut App) {
+    app
+      .add_startup_system(init)
+      .add_system(update);
+  }
+}
+
+fn init() {
+  // let worker_handle = Rc::new(RefCell::new(
+  //   Worker::new("./crates/multithread/worker.js").unwrap())
+  // );
+
+  // let callback = Closure::new(move || {
+  //   console::log_1(&"oninput callback triggered".into());
+  //   let document = web_sys::window().unwrap().document().unwrap();
+
+  // });
+
+}
+
+fn update() {
+
 }
 
 
@@ -31,6 +58,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use web_sys::{console, HtmlElement, HtmlInputElement, MessageEvent, Worker};
+
+use voxels::chunk::chunk_manager::ChunkManager;
 
 /// A number evaluation struct
 ///
@@ -41,13 +70,17 @@ use web_sys::{console, HtmlElement, HtmlInputElement, MessageEvent, Worker};
 #[wasm_bindgen]
 pub struct NumberEval {
     number: i32,
+    manager: ChunkManager
 }
 
 #[wasm_bindgen]
 impl NumberEval {
     /// Create new instance.
     pub fn new() -> NumberEval {
-        NumberEval { number: 0 }
+        NumberEval { 
+          number: 0,
+          manager: ChunkManager::default(),
+        }
     }
 
     /// Check if a number is even and store it as last processed number.
@@ -65,6 +98,16 @@ impl NumberEval {
     pub fn get_last_number(&self) -> i32 {
         self.number
     }
+
+
+    pub fn get_voxel(&self) -> Vec<u8> {
+      let chunk = ChunkManager::new_chunk(
+        &[0, -1, 0], 4, 4, self.manager.noise
+      );
+
+      chunk.octree.data
+    }
+
 }
 
 /// Run entry point for the main thread.
@@ -75,6 +118,8 @@ pub fn startup() {
     // `Rc<RefCell>` following the interior mutability pattern. Here, it would
     // not be needed but we include the wrapping anyway as example.
     // let worker_handle = Rc::new(RefCell::new(Worker::new("./worker.js").unwrap()));
+    
+    
     let worker_handle = Rc::new(RefCell::new(
       Worker::new("./crates/multithread/worker.js").unwrap())
     );
@@ -100,6 +145,8 @@ fn setup_input_oninput_callback(worker: Rc<RefCell<web_sys::Worker>>) {
         console::log_1(&"oninput callback triggered".into());
         let document = web_sys::window().unwrap().document().unwrap();
 
+
+
         let input_field = document
             .get_element_by_id("inputNumber")
             .expect("#inputNumber should exist");
@@ -109,7 +156,7 @@ fn setup_input_oninput_callback(worker: Rc<RefCell<web_sys::Worker>>) {
 
         // If the value in the field can be parsed to a `i32`, send it to the
         // worker. Otherwise clear the result field.
-        match input_field.value().parse::<i32>() {
+         match input_field.value().parse::<i32>() {
             Ok(number) => {
                 // Access worker behind shared handle, following the interior
                 // mutability pattern.
@@ -131,6 +178,8 @@ fn setup_input_oninput_callback(worker: Rc<RefCell<web_sys::Worker>>) {
                     .set_inner_text("");
             }
         }
+
+
     });
 
     // Attach the closure as `oninput` callback to the input field.
