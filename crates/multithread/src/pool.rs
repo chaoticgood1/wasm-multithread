@@ -66,8 +66,6 @@ impl WorkerPool {
     /// Returns any error that may happen while a JS web worker is created and a
     /// message is sent to it.
     fn spawn(&self) -> Result<Worker, JsValue> {
-        let dir = "./crates/multithread/worker.js";
-
         console_log!("spawning new worker");
         // TODO: what do do about `./worker.js`:
         //
@@ -75,7 +73,7 @@ impl WorkerPool {
         //   library, know what's going on?
         // * How do we not fetch a script N times? It internally then
         //   causes another script to get fetched N times...
-        let worker = Worker::new(dir)?;
+        let worker = Worker::new("./worker.js")?;
 
         // With a worker spun up send it the module/memory so it can start
         // instantiating the wasm module. Later it might receive further

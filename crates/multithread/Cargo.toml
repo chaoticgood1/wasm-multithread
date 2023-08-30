@@ -18,6 +18,7 @@ wasm-bindgen = "0.2.87"
 wasm-bindgen-futures = "0.4.37"
 
 bevy = "0.10.1"
+flume = "0.11.0"
 
 [dependencies.web-sys]
 version = "0.3.23"
@@ -25,12 +26,18 @@ features = [
   'CanvasRenderingContext2d',
   'ErrorEvent',
   'Event',
-  'ImageData',
-  'Navigator',
+
+  'console',
+  'Document',
+  'HtmlElement',
+  'HtmlInputElement',
+  'MessageEvent',
   'Window',
   'Worker',
+
+  'ImageData',
+  'Navigator',
   'DedicatedWorkerGlobalScope',
-  'MessageEvent',
 ]
 
 

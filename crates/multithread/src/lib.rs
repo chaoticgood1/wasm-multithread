@@ -1,168 +1,166 @@
 use bevy::prelude::*;
+use flume;
 
 pub fn run() {
-  info!("run");
+  info!("run112");
+
+
+  // let worker_handle = Rc::new(
+  //   RefCell::new(Worker::new("./crates/multithread/worker.js").unwrap())
+  // );
+
+
+
+  // let (tx, rx) = flume::unbounded();
+
+  // Rc::new(RefCell::new(Worker::new("./worker.js").unwrap()));
+
+  // let pool = Rc::new(RefCell::new(WorkerPool::new(6).unwrap()));
+  // pool.run(move || {
+  //   // async_std::task::sleep(Duration::from_millis(10000));
+  //   // tx.send("Testing");
+  // });
+
+  // for i in rx.iter() {
+  //   info!("recieve {:?}", i);
+  // }
 }
 
 
-use futures_channel::oneshot;
-use js_sys::{Promise, Uint8ClampedArray, WebAssembly};
-use rayon::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
+use web_sys::{console, HtmlElement, HtmlInputElement, MessageEvent, Worker};
 
-macro_rules! console_log {
-    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
-}
-
-mod pool;
-
+/// A number evaluation struct
+///
+/// This struct will be the main object which responds to messages passed to the
+/// worker. It stores the last number which it was passed to have a state. The
+/// statefulness is not is not required in this example but should show how
+/// larger, more complex scenarios with statefulness can be set up.
 #[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn logv(x: &JsValue);
-}
-
-#[wasm_bindgen]
-pub struct Scene {
-    inner: raytracer::scene::Scene,
+pub struct NumberEval {
+    number: i32,
 }
 
 #[wasm_bindgen]
-impl Scene {
-    /// Creates a new scene from the JSON description in `object`, which we
-    /// deserialize here into an actual scene.
-    #[wasm_bindgen(constructor)]
-    pub fn new(object: JsValue) -> Result<Scene, JsValue> {
-        console_error_panic_hook::set_once();
-        Ok(Scene {
-            inner: serde_wasm_bindgen::from_value(object)
-                .map_err(|e| JsValue::from(e.to_string()))?,
-        })
+impl NumberEval {
+    /// Create new instance.
+    pub fn new() -> NumberEval {
+        NumberEval { number: 0 }
     }
 
-    /// Renders this scene with the provided concurrency and worker pool.
+    /// Check if a number is even and store it as last processed number.
     ///
-    /// This will spawn up to `concurrency` workers which are loaded from or
-    /// spawned into `pool`. The `RenderingScene` state contains information to
-    /// get notifications when the render has completed.
-    pub fn render(
-        self,
-        concurrency: usize,
-        pool: &pool::WorkerPool,
-    ) -> Result<RenderingScene, JsValue> {
-        let scene = self.inner;
-        let height = scene.height;
-        let width = scene.width;
+    /// # Arguments
+    ///
+    /// * `number` - The number to be checked for being even/odd.
+    pub fn is_even(&mut self, number: i32) -> bool {
+        self.number = number;
+        self.number % 2 == 0
+    }
 
-        // Allocate the pixel data which our threads will be writing into.
-        let pixels = (width * height) as usize;
-        let mut rgb_data = vec![0; 4 * pixels];
-        let base = rgb_data.as_ptr() as usize;
-        let len = rgb_data.len();
+    /// Get last number that was checked - this method is added to work with
+    /// statefulness.
+    pub fn get_last_number(&self) -> i32 {
+        self.number
+    }
+}
 
-        // Configure a rayon thread pool which will pull web workers from
-        // `pool`.
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(concurrency)
-            .spawn_handler(|thread| {
-                pool.run(|| thread.run()).unwrap();
-                Ok(())
-            })
-            .build()
-            .unwrap();
+/// Run entry point for the main thread.
+#[wasm_bindgen]
+pub fn startup() {
+    // Here, we create our worker. In a larger app, multiple callbacks should be
+    // able to interact with the code in the worker. Therefore, we wrap it in
+    // `Rc<RefCell>` following the interior mutability pattern. Here, it would
+    // not be needed but we include the wrapping anyway as example.
+    // let worker_handle = Rc::new(RefCell::new(Worker::new("./worker.js").unwrap()));
+    let worker_handle = Rc::new(RefCell::new(
+      Worker::new("./crates/multithread/worker.js").unwrap())
+    );
+    console::log_1(&"Created a new worker from within Wasm".into());
 
-        // And now execute the render! The entire render happens on our worker
-        // threads so we don't lock up the main thread, so we ship off a thread
-        // which actually does the whole rayon business. When our returned
-        // future is resolved we can pull out the final version of the image.
-        let (tx, rx) = oneshot::channel();
-        pool.run(move || {
-            thread_pool.install(|| {
-                rgb_data
-                    .par_chunks_mut(4)
-                    .enumerate()
-                    .for_each(|(i, chunk)| {
-                        let i = i as u32;
-                        let x = i % width;
-                        let y = i / width;
-                        let ray = raytracer::Ray::create_prime(x, y, &scene);
-                        let result = raytracer::cast_ray(&scene, &ray, 0).to_rgba();
-                        chunk[0] = result.data[0];
-                        chunk[1] = result.data[1];
-                        chunk[2] = result.data[2];
-                        chunk[3] = result.data[3];
-                    });
-            });
-            drop(tx.send(rgb_data));
-        })?;
+    // Pass the worker to the function which sets up the `oninput` callback.
+    setup_input_oninput_callback(worker_handle);
+}
 
-        let done = async move {
-            match rx.await {
-                Ok(_data) => Ok(image_data(base, len, width, height).into()),
-                Err(_) => Err(JsValue::undefined()),
+fn setup_input_oninput_callback(worker: Rc<RefCell<web_sys::Worker>>) {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    // If our `onmessage` callback should stay valid after exiting from the
+    // `oninput` closure scope, we need to either forget it (so it is not
+    // destroyed) or store it somewhere. To avoid leaking memory every time we
+    // want to receive a response from the worker, we move a handle into the
+    // `oninput` closure to which we will always attach the last `onmessage`
+    // callback. The initial value will not be used and we silence the warning.
+    #[allow(unused_assignments)]
+    let mut persistent_callback_handle = get_on_msg_callback();
+
+    let callback = Closure::new(move || {
+        console::log_1(&"oninput callback triggered".into());
+        let document = web_sys::window().unwrap().document().unwrap();
+
+        let input_field = document
+            .get_element_by_id("inputNumber")
+            .expect("#inputNumber should exist");
+        let input_field = input_field
+            .dyn_ref::<HtmlInputElement>()
+            .expect("#inputNumber should be a HtmlInputElement");
+
+        // If the value in the field can be parsed to a `i32`, send it to the
+        // worker. Otherwise clear the result field.
+        match input_field.value().parse::<i32>() {
+            Ok(number) => {
+                // Access worker behind shared handle, following the interior
+                // mutability pattern.
+                let worker_handle = &*worker.borrow();
+                let _ = worker_handle.post_message(&number.into());
+                persistent_callback_handle = get_on_msg_callback();
+
+                // Since the worker returns the message asynchronously, we
+                // attach a callback to be triggered when the worker returns.
+                worker_handle
+                    .set_onmessage(Some(persistent_callback_handle.as_ref().unchecked_ref()));
             }
+            Err(_) => {
+                document
+                    .get_element_by_id("resultField")
+                    .expect("#resultField should exist")
+                    .dyn_ref::<HtmlElement>()
+                    .expect("#resultField should be a HtmlInputElement")
+                    .set_inner_text("");
+            }
+        }
+    });
+
+    // Attach the closure as `oninput` callback to the input field.
+    document
+        .get_element_by_id("inputNumber")
+        .expect("#inputNumber should exist")
+        .dyn_ref::<HtmlInputElement>()
+        .expect("#inputNumber should be a HtmlInputElement")
+        .set_oninput(Some(callback.as_ref().unchecked_ref()));
+
+    // Leaks memory.
+    callback.forget();
+}
+
+/// Create a closure to act on the message returned by the worker
+fn get_on_msg_callback() -> Closure<dyn FnMut(MessageEvent)> {
+    Closure::new(move |event: MessageEvent| {
+        console::log_2(&"Received response: ".into(), &event.data());
+
+        let result = match event.data().as_bool().unwrap() {
+            true => "even",
+            false => "odd",
         };
 
-        Ok(RenderingScene {
-            promise: wasm_bindgen_futures::future_to_promise(done),
-            base,
-            len,
-            height,
-            width,
-        })
-    }
-}
-
-#[wasm_bindgen]
-pub struct RenderingScene {
-    base: usize,
-    len: usize,
-    promise: Promise,
-    width: u32,
-    height: u32,
-}
-
-// Inline the definition of `ImageData` here because `web_sys` uses
-// `&Clamped<Vec<u8>>`, whereas we want to pass in a JS object here.
-#[wasm_bindgen]
-extern "C" {
-    pub type ImageData;
-
-    #[wasm_bindgen(constructor, catch)]
-    fn new(data: &Uint8ClampedArray, width: f64, height: f64) -> Result<ImageData, JsValue>;
-}
-
-#[wasm_bindgen]
-impl RenderingScene {
-    /// Returns the JS promise object which resolves when the render is complete
-    pub fn promise(&self) -> Promise {
-        self.promise.clone()
-    }
-
-    /// Return a progressive rendering of the image so far
-    #[wasm_bindgen(js_name = imageSoFar)]
-    pub fn image_so_far(&self) -> ImageData {
-        image_data(self.base, self.len, self.width, self.height)
-    }
-}
-
-fn image_data(base: usize, len: usize, width: u32, height: u32) -> ImageData {
-    // Use the raw access available through `memory.buffer`, but be sure to
-    // use `slice` instead of `subarray` to create a copy that isn't backed
-    // by `SharedArrayBuffer`. Currently `ImageData` rejects a view of
-    // `Uint8ClampedArray` that's backed by a shared buffer.
-    //
-    // FIXME: that this may or may not be UB based on Rust's rules. For example
-    // threads may be doing unsynchronized writes to pixel data as we read it
-    // off here. In the context of wasm this may or may not be UB, we're
-    // unclear! In any case for now it seems to work and produces a nifty
-    // progressive rendering. A more production-ready application may prefer to
-    // instead use some form of signaling here to request an update from the
-    // workers instead of synchronously acquiring an update, and that way we
-    // could ensure that even on the Rust side of things it's not UB.
-    let mem = wasm_bindgen::memory().unchecked_into::<WebAssembly::Memory>();
-    let mem = Uint8ClampedArray::new(&mem.buffer()).slice(base as u32, (base + len) as u32);
-    ImageData::new(&mem, width as f64, height as f64).unwrap()
+        let document = web_sys::window().unwrap().document().unwrap();
+        document
+            .get_element_by_id("resultField")
+            .expect("#resultField should exist")
+            .dyn_ref::<HtmlElement>()
+            .expect("#resultField should be a HtmlInputElement")
+            .set_inner_text(result);
+    })
 }
