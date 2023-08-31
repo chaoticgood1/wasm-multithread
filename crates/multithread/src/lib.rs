@@ -11,40 +11,33 @@ use std::rc::Rc;
 mod julia_set;
 
 
-use web_sys::{HtmlInputElement, MessageEvent};
+use web_sys::{HtmlElement, HtmlInputElement, MessageEvent};
 
 #[wasm_bindgen]
 pub fn app() {
+  // spawn_local(async move {
+  //   let mt = WasmMt::new("crates/multithread/pkg/multithread.js").and_init().await.unwrap();
+  //   run(&mt).await;
+  // });
+
 
   let (tx, rx) = flume::unbounded();
-  
-  
+  tx.send("1");
   spawn_local(async move {
     let mt = WasmMt::new("crates/multithread/pkg/multithread.js").and_init().await.unwrap();
-
-    console_ln!("done1");
     while let Ok(msg) = rx.recv_async().await {
       console_ln!("Received: {}", msg);
-      run(&mt).await;
+      init_voxel(&mt).await;
     }
-    console_ln!("done4");
   });
 
-  spawn_local(async move {
+  // spawn_local(async move {
     // sleep(1000).await;
     // tx.send_async("test1").await;
     // sleep(1000).await;
     // tx.send_async("test2").await;
-  });
+  // });
 
-
-  // let callback = Closure::new(move || {
-  //   tx.send("test3");
-  //   console_ln!("text_changed");
-  //   // console::log_1(&"oninput callback triggered".into());
-  //   // let document = web_sys::window().unwrap().document().unwrap();
-
-  // }) as Closure<dyn FnMut(web_sys::MessageEvent)>);
 
   let callback = Closure::wrap(Box::new(move |event: MessageEvent| {
     tx.send("test3");
@@ -59,6 +52,20 @@ pub fn app() {
     .expect("#inputNumber should be a HtmlInputElement")
     .set_oninput(Some(callback.as_ref().unchecked_ref()));
   callback.forget();
+
+
+  let cb1 = Closure::wrap(Box::new(move |event: MessageEvent| {
+    // console_ln!("output changed ", event.data());
+    console_ln!("Receiving output");
+  }) as Box<dyn FnMut(MessageEvent)>);
+
+  document
+    .get_element_by_id("outputText")
+    .expect("#inputNumber should exist")
+    .dyn_ref::<HtmlInputElement>()
+    .expect("#inputNumber should be a HtmlElement")
+    .set_oninput(Some(cb1.as_ref().unchecked_ref()));
+  cb1.forget();
 }
 
 fn get_canvas_context(id: &str) -> CanvasRenderingContext2d {
@@ -221,6 +228,72 @@ pub async fn run(mt: &WasmMt) -> Result<(), JsValue> {
 
 
 
+pub async fn init_voxel(mt: &WasmMt) -> Result<(), JsValue> {
+  let num = 4;
+
+  // Prepare threads
+
+  let mut v: Vec<wasm_mt::Thread> = vec![];
+  for i in 0..num {
+    let th = mt.thread().and_init().await?;
+    th.set_id(&i.to_string());
+    v.push(th);
+  }
+
+  let mut index = 0;
+  for th in v {
+    spawn_local(async move {
+      run_voxel(&th, index).await;
+    });
+    index += 1;
+  }
+  Ok(())
+}
+
+
+async fn run_voxel(th: &wasm_mt::Thread, index: i64) {
+  let width: u32 = 800;
+  let height: u32 = 800;
+
+  let th_id = th.get_id().unwrap();
+  console_ln!("th_{}: starting1", th_id);
+
+  let data = exec!(th, move || compute_voxel(index))
+    .await.unwrap();
+
+  let ab = data.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
+  let mut vec = js_sys::Uint8Array::new(ab);
+
+  let str = vec.to_string();
+  // let v = js_sys::Uint8Array::new(&str);
+  // console_ln!("Data2 {:?}", str);
+  // console_ln!("v {:?}", v);
+
+  let s: String = str.into();
+  // console_ln!("s {:?}", s);
+  // let s = "1";
+
+  let document = web_sys::window().unwrap().document().unwrap();
+  document
+    .get_element_by_id("outputText")
+    .expect("#inputNumber should exist")
+    .dyn_ref::<HtmlInputElement>()
+    .expect("#resultField should be a HtmlInputElement")
+    .set_value(&s);
+
+  console_ln!("Setting outputText");
+}
+
+fn compute_voxel(index: i64) -> Result<JsValue, JsValue> {
+  
+  let manager = ChunkManager::default();
+  let chunk = ChunkManager::new_chunk(&[index, 0, 0], 4, 4, manager.noise);
+
+  // console_ln!("Data1 {:?}", chunk.octree.data);
+  // Ok(wasm_mt::utils::u8arr_from_vec(&chunk.octree.data).buffer().into())
+  Ok(wasm_mt::utils::u8arr_from_vec(&[index as u8]).buffer().into())
+}
+
 
 /*
   How to send data to worker?
@@ -235,6 +308,7 @@ pub async fn run(mt: &WasmMt) -> Result<(), JsValue> {
 
 use bevy::prelude::*;
 use flume;
+use voxels::chunk::chunk_manager::*;
 
 pub fn test_run() {
   info!("test_run");
