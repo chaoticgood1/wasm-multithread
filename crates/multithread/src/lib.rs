@@ -67,18 +67,6 @@ pub fn app() {
     .set_onchange(Some(cb1.as_ref().unchecked_ref()));
   cb1.forget();
 
-
-
-  let window = web_sys::window().unwrap();
-  let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
-    // console_ln!("output changed ", event.data());
-    console_ln!("Receiving output");
-  }) as Box<dyn FnMut(MessageEvent)>);
-
-  window
-    .set_onmessage(Some(cb2.as_ref().unchecked_ref()));
-  cb2.forget();
-
   // document
   //   .get_element_by_id("outputText")
   //   .expect("#inputNumber should exist")
@@ -284,7 +272,11 @@ async fn run_voxel(th: &wasm_mt::Thread, index: i64) {
   let ab = data.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
   let mut vec = js_sys::Uint8Array::new(ab);
 
-  let str = vec.to_string();
+  let bytes = vec.to_vec();
+  let str = String::from_utf8_lossy(&bytes);
+
+  // let b = str.as_bytes();
+
   // let v = js_sys::Uint8Array::new(&str);
   // console_ln!("Data2 {:?}", str);
   // console_ln!("v {:?}", v);
@@ -301,10 +293,11 @@ async fn run_voxel(th: &wasm_mt::Thread, index: i64) {
   //   .expect("#resultField should be a HtmlInputElement")
   //   .set_value(&s);
 
-  console_ln!("Setting outputText");
+  // console_ln!("b {:?}", b);
+  // console_ln!("Setting outputText {:?}", str);
 
   let window = web_sys::window().unwrap();
-  window.post_message(&str, "/");
+  window.post_message(&JsValue::from_str(&str), "/");
 }
 
 fn compute_voxel(index: i64) -> Result<JsValue, JsValue> {
@@ -313,8 +306,8 @@ fn compute_voxel(index: i64) -> Result<JsValue, JsValue> {
   let chunk = ChunkManager::new_chunk(&[index, 0, 0], 4, 4, manager.noise);
 
   // console_ln!("Data1 {:?}", chunk.octree.data);
-  // Ok(wasm_mt::utils::u8arr_from_vec(&chunk.octree.data).buffer().into())
-  Ok(wasm_mt::utils::u8arr_from_vec(&[index as u8]).buffer().into())
+  Ok(wasm_mt::utils::u8arr_from_vec(&chunk.octree.data).buffer().into())
+  // Ok(wasm_mt::utils::u8arr_from_vec(&[index as u8]).buffer().into())
 }
 
 
@@ -331,6 +324,7 @@ fn compute_voxel(index: i64) -> Result<JsValue, JsValue> {
 
 use bevy::prelude::*;
 use flume;
+use flume::{Sender, Receiver};
 use voxels::chunk::chunk_manager::*;
 
 pub fn test_run() {
@@ -363,12 +357,14 @@ pub struct CustomPlugin;
 impl Plugin for CustomPlugin {
   fn build(&self, app: &mut App) {
     app
+      .insert_resource(LocalResource::default())
       .add_startup_system(init)
       .add_system(update);
   }
 }
 
 fn init(
+  mut local_res: ResMut<LocalResource>,
 ) {
   // let (tx, rx) = flume::unbounded();
   // tx.send("1");
@@ -379,8 +375,47 @@ fn init(
   //     init_voxel(&mt).await;
   //   }
   // });
+  let s = local_res.send.clone();
+  let window = web_sys::window().unwrap();
+  let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
+    let data = event.data();
+    let d = data.as_string().unwrap();
+    // let b = d.as_bytes();
+    s.send(d.as_bytes().to_vec());
+    // console_ln!("Bevy receives1 {:?}", b);
+    
+    // let ab = data.dyn_ref::<js_sys::ArrayBuffer>();
+    // console_ln!("Bevy receives2 {:?}", ab);
+    // let mut vec = js_sys::Uint8Array::new(ab);
+
+    // console_ln!("Bevy receives {:?}", vec);
+  }) as Box<dyn FnMut(MessageEvent)>);
+
+  window
+    .set_onmessage(Some(cb2.as_ref().unchecked_ref()));
+  cb2.forget();
 }
 
-fn update() {
+fn update(
+  local_res: Res<LocalResource>,
+) {
+  for bytes in local_res.recv.drain() {
+    info!("update() {:?}", bytes);
+  }
+}
 
+#[derive(Resource)]
+struct LocalResource {
+  send: Sender<Vec<u8>>,
+  recv: Receiver<Vec<u8>>,
+}
+
+impl Default for LocalResource {
+  fn default() -> Self {
+    let (send, recv) = flume::unbounded();
+    Self {
+      send: send,
+      recv: recv,
+    }
+  }
 }
