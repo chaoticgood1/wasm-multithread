@@ -22,12 +22,20 @@ wasm-bindgen --out-name ironverse-editor --out-dir assets/wasm --target web targ
 # basic-http-server .
 # '''
 
+# [tasks.client]
+# script = '''
+# cd crates/multithread/
+# ./build.sh
+# cd ../../
+# ./server.py
+# '''
+
 [tasks.client]
 script = '''
 cd crates/multithread/
 ./build.sh
 cd ../../
-./server.py
+basic-http-server .
 '''
 
 [tasks.web-wasm-bindgen-cli]

@@ -5,17 +5,60 @@ use wasm_bindgen::{JsCast, Clamped};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 use wasm_mt::prelude::*;
-use wasm_mt::utils::{console_ln, Counter};
+use wasm_mt::utils::{console_ln, Counter, debug_ln, sleep};
 use std::rc::Rc;
 
 mod julia_set;
 
+
+use web_sys::{HtmlInputElement, MessageEvent};
+
 #[wasm_bindgen]
 pub fn app() {
-    spawn_local(async move {
-        let mt = WasmMt::new("crates/multithread/pkg/multithread.js").and_init().await.unwrap();
-        let _ = run(mt).await;
-    });
+
+  let (tx, rx) = flume::unbounded();
+  
+  
+  spawn_local(async move {
+    let mt = WasmMt::new("crates/multithread/pkg/multithread.js").and_init().await.unwrap();
+
+    console_ln!("done1");
+    while let Ok(msg) = rx.recv_async().await {
+      console_ln!("Received: {}", msg);
+      run(&mt).await;
+    }
+    console_ln!("done4");
+  });
+
+  spawn_local(async move {
+    // sleep(1000).await;
+    // tx.send_async("test1").await;
+    // sleep(1000).await;
+    // tx.send_async("test2").await;
+  });
+
+
+  // let callback = Closure::new(move || {
+  //   tx.send("test3");
+  //   console_ln!("text_changed");
+  //   // console::log_1(&"oninput callback triggered".into());
+  //   // let document = web_sys::window().unwrap().document().unwrap();
+
+  // }) as Closure<dyn FnMut(web_sys::MessageEvent)>);
+
+  let callback = Closure::wrap(Box::new(move |event: MessageEvent| {
+    tx.send("test3");
+    console_ln!("text_changed");
+  }) as Box<dyn FnMut(MessageEvent)>);
+
+  let document = web_sys::window().unwrap().document().unwrap();
+  document
+    .get_element_by_id("inputText")
+    .expect("#inputNumber should exist")
+    .dyn_ref::<HtmlInputElement>()
+    .expect("#inputNumber should be a HtmlInputElement")
+    .set_oninput(Some(callback.as_ref().unchecked_ref()));
+  callback.forget();
 }
 
 fn get_canvas_context(id: &str) -> CanvasRenderingContext2d {
@@ -119,7 +162,7 @@ async fn run_task(th: &wasm_mt::Thread) {
 }
 
 // main thread
-pub async fn run(mt: WasmMt) -> Result<(), JsValue> {
+pub async fn run(mt: &WasmMt) -> Result<(), JsValue> {
     // Instead of putting
     //   <canvas id="drawing" width="800" height="800"></canvas>
     // in index.html, dynamically appending a new canvas for
@@ -178,6 +221,12 @@ pub async fn run(mt: WasmMt) -> Result<(), JsValue> {
 
 
 
+
+/*
+  How to send data to worker?
+
+  How to get data from worker
+*/
 
 
 

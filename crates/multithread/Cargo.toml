@@ -37,4 +37,8 @@ features = [
   'Performance',
   'PerformanceTiming',
   'Window',
+
+  'HtmlElement',
+  'HtmlInputElement',
+  'MessageEvent',
 ]
