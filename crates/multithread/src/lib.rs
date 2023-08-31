@@ -11,7 +11,7 @@ use std::rc::Rc;
 mod julia_set;
 
 
-use web_sys::{HtmlElement, HtmlInputElement, MessageEvent};
+use web_sys::{HtmlElement, HtmlInputElement, MessageEvent, InputEvent};
 
 #[wasm_bindgen]
 pub fn app() {
@@ -54,18 +54,38 @@ pub fn app() {
   callback.forget();
 
 
-  let cb1 = Closure::wrap(Box::new(move |event: MessageEvent| {
+  let cb1 = Closure::wrap(Box::new(move |event: InputEvent| {
     // console_ln!("output changed ", event.data());
     console_ln!("Receiving output");
-  }) as Box<dyn FnMut(MessageEvent)>);
+  }) as Box<dyn FnMut(InputEvent)>);
 
   document
     .get_element_by_id("outputText")
     .expect("#inputNumber should exist")
     .dyn_ref::<HtmlInputElement>()
     .expect("#inputNumber should be a HtmlElement")
-    .set_oninput(Some(cb1.as_ref().unchecked_ref()));
+    .set_onchange(Some(cb1.as_ref().unchecked_ref()));
   cb1.forget();
+
+
+
+  let window = web_sys::window().unwrap();
+  let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
+    // console_ln!("output changed ", event.data());
+    console_ln!("Receiving output");
+  }) as Box<dyn FnMut(MessageEvent)>);
+
+  window
+    .set_onmessage(Some(cb2.as_ref().unchecked_ref()));
+  cb2.forget();
+
+  // document
+  //   .get_element_by_id("outputText")
+  //   .expect("#inputNumber should exist")
+  //   .dyn_ref::<HtmlInputElement>()
+  //   .expect("#inputNumber should be a HtmlElement")
+  //   .set_onchange(Some(cb1.as_ref().unchecked_ref()));
+  // cb2.forget();
 }
 
 fn get_canvas_context(id: &str) -> CanvasRenderingContext2d {
@@ -269,19 +289,22 @@ async fn run_voxel(th: &wasm_mt::Thread, index: i64) {
   // console_ln!("Data2 {:?}", str);
   // console_ln!("v {:?}", v);
 
-  let s: String = str.into();
-  // console_ln!("s {:?}", s);
-  // let s = "1";
+  // let s: String = str.into();
+  // // console_ln!("s {:?}", s);
+  // // let s = "1";
 
-  let document = web_sys::window().unwrap().document().unwrap();
-  document
-    .get_element_by_id("outputText")
-    .expect("#inputNumber should exist")
-    .dyn_ref::<HtmlInputElement>()
-    .expect("#resultField should be a HtmlInputElement")
-    .set_value(&s);
+  // let document = web_sys::window().unwrap().document().unwrap();
+  // document
+  //   .get_element_by_id("outputText")
+  //   .expect("#inputNumber should exist")
+  //   .dyn_ref::<HtmlInputElement>()
+  //   .expect("#resultField should be a HtmlInputElement")
+  //   .set_value(&s);
 
   console_ln!("Setting outputText");
+
+  let window = web_sys::window().unwrap();
+  window.post_message(&str, "/");
 }
 
 fn compute_voxel(index: i64) -> Result<JsValue, JsValue> {
@@ -347,6 +370,15 @@ impl Plugin for CustomPlugin {
 
 fn init(
 ) {
+  // let (tx, rx) = flume::unbounded();
+  // tx.send("1");
+  // spawn_local(async move {
+  //   let mt = WasmMt::new("crates/multithread/pkg/multithread.js").and_init().await.unwrap();
+  //   while let Ok(msg) = rx.recv_async().await {
+  //   //   console_ln!("Received: {}", msg);
+  //     init_voxel(&mt).await;
+  //   }
+  // });
 }
 
 fn update() {
