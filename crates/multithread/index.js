@@ -1,18 +1,16 @@
-// We only need `startup` here which is the main entry point
-// In theory, we could also use all other functions/struct types from Rust which we have bound with
-// `#[wasm_bindgen]`
-const {startup} = wasm_bindgen;
+export default async function (name) {
+  // const pkgJs = await (await fetch(`./pkg/${name}.js`)).text();
+  const pkgJs = await (await fetch(`crates/multithread/pkg/${name}.js`)).text();
 
-async function run_wasm() {
-    // Load the wasm file by awaiting the Promise returned by `wasm_bindgen`
-    // `wasm_bindgen` was imported in `index.html`
-    await wasm_bindgen();
+  // Create the 'pure' version of the wasm_bindgen's `init()`
+  const initJs = `return () => { const document = undefined; const location = {}; ${pkgJs} return wasm_bindgen; };`;
+  const init = (new Function(initJs)).call(null);
 
-    console.log('index.js loaded');
+  const wbg = init();
+  // const wasm = await wbg(`./pkg/${name}_bg.wasm`);
+  const wasm = await wbg(`crates/multithread/pkg/${name}_bg.wasm`);
+  // console.log('wasm:', wasm);
+  wbg.app();
 
-    // Run main Wasm entry point
-    // This will create a worker from within our Rust code compiled to Wasm
-    startup();
+  return wbg;
 }
-
-run_wasm();

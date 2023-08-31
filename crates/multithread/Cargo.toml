@@ -6,79 +6,35 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[dev-dependencies]
+wasm-bindgen-test = "0.3.0"
+
 [dependencies]
-console_error_panic_hook = "0.1"
-js-sys = "0.3.64"
-rayon = "1.1.0"
-rayon-core = "1.5.0"
-raytracer = { git = 'https://github.com/alexcrichton/raytracer', branch = 'update-deps' }
-serde-wasm-bindgen = "0.4.3"
-futures-channel-preview = "0.3.0-alpha.18"
-wasm-bindgen = "0.2.87"
-wasm-bindgen-futures = "0.4.37"
+wasm-mt = "0.1.3"
+js-sys = "0.3"
+
+serde = { version = "1.0", features = ["derive"] }
+serde_closure = "0.3"
+
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+rand = { version = "0.7", features = ["wasm-bindgen"] }
+humantime = "1"
+
 
 bevy = "0.10.1"
 flume = "0.11.0"
 
-voxels = { path = "../voxels" }
-
 [dependencies.web-sys]
-version = "0.3.23"
+version = "0.3"
 features = [
-  'CanvasRenderingContext2d',
-  'ErrorEvent',
-  'Event',
-
   'console',
+  'CanvasRenderingContext2d',
   'Document',
-  'HtmlElement',
-  'HtmlInputElement',
-  'MessageEvent',
-  'Window',
-  'Worker',
-
+  'Element',
+  'HtmlCanvasElement',
   'ImageData',
-  'Navigator',
-  'DedicatedWorkerGlobalScope',
+  'Performance',
+  'PerformanceTiming',
+  'Window',
 ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# [lib]
-# crate-type = ["cdylib", "rlib"]
-
-# [dependencies]
-# wasm-mt = "0.1"
-# serde = { version = "1.0", features = ["derive"] }
-# serde_closure = "0.3"
-
-# wasm-bindgen = "0.2"
-# wasm-bindgen-futures = "0.4"
-
-# [dependencies.web-sys]
-# version = "0.3"
-# features = [
-#   'console',
-# ]
-
-
-# [dependencies]
-# bevy = "0.10.1"
