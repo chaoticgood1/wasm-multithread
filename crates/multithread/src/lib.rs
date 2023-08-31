@@ -36,7 +36,11 @@ impl Plugin for CustomPlugin {
   }
 }
 
-fn init() {
+use std::sync::{Arc, Mutex};
+
+fn init(
+  mut local: Local<LocalResource>,
+) {
   // let worker_handle = Rc::new(RefCell::new(
   //   Worker::new("./crates/multithread/worker.js").unwrap())
   // );
@@ -47,11 +51,21 @@ fn init() {
 
   // });
 
+  let pool = Arc::new(
+    Mutex::new(Worker::new("./crates/multithread/worker.js").unwrap())
+  );
+
 }
 
 fn update() {
 
 }
+
+struct LocalResource {
+  worker: Arc<Mutex<Worker>>,
+}
+
+
 
 
 use std::cell::RefCell;
