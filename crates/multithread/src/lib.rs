@@ -9,14 +9,14 @@ use js_sys::ArrayBuffer;
 
 #[wasm_bindgen]
 pub fn app() {
-  // let (send, recv) = flume::unbounded();
-  // spawn_local(async move {
-  //   let ab_js = fetch_as_arraybuffer("crates/multithread/pkg/multithread.js").await.unwrap();
-  //   let ab_wasm = fetch_as_arraybuffer("crates/multithread/pkg/multithread_bg.wasm").await.unwrap();
-  //   run(recv, ab_js, ab_wasm).await.unwrap();
+  let (send, recv) = flume::unbounded();
+  spawn_local(async move {
+    let ab_js = fetch_as_arraybuffer("crates/multithread/pkg/multithread.js").await.unwrap();
+    let ab_wasm = fetch_as_arraybuffer("crates/multithread/pkg/multithread_bg.wasm").await.unwrap();
+    run(recv, ab_js, ab_wasm).await.unwrap();
 
-  //   console_ln!("spawn_local");
-  // });
+    console_ln!("spawn_local");
+  });
 
   // send.send([0, -1, 0]);
 
@@ -28,21 +28,10 @@ pub fn app() {
   // });
 
 
-
+/* 
   spawn_local(async move {
     let mut num = 0;
     loop {
-      // let document = web_sys::window().unwrap().document().unwrap();
-      // document
-      //   .get_element_by_id("inputText")
-      //   .expect("#inputNumber should exist")
-      //   .dyn_ref::<HtmlInputElement>()
-      //   .expect("#resultField should be a HtmlInputElement")
-      //   .set_value(&num.to_string());
-
-
-      // let window = web_sys::window().unwrap();
-      // window.post_message(&JsValue::from_str("[0, -1, 0]"), "/");
 
       let key: Vec<i64> = vec![0, -1, 0];
       
@@ -71,7 +60,7 @@ pub fn app() {
       sleep(1_000).await;
     }
   });
-
+ */
 
   let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
     // console_ln!("text_changed");
@@ -84,11 +73,13 @@ pub fn app() {
         i64::from_be_bytes(a1)
       })
       .collect();
-    console_ln!("a {:?}", a);
+    
     // console_ln!("bytes {:?}", bytes);
+    
+    let key: [i64; 3] = a[0..3].try_into().unwrap();
+    let _ = send.send(key);
 
-
-
+    console_ln!("recv key {:?}", key);
 
 
     // let b = data.as_bytes();
@@ -150,7 +141,7 @@ pub async fn run(
       let bytes = vec.to_vec();
       let str = String::from_utf8_lossy(&bytes);
 
-      console_ln!("str {:?}", str);
+      // console_ln!("str {:?}", str);
 
       let window = web_sys::window().unwrap();
       let _ = window.post_message(&JsValue::from_str(&str), "/");
@@ -268,19 +259,10 @@ impl Plugin for CustomPlugin {
 fn init(
   local_res: ResMut<LocalResource>,
 ) {
-  // let (tx, rx) = flume::unbounded();
-  // tx.send("1");
-  // spawn_local(async move {
-  //   let mt = WasmMt::new("crates/multithread/pkg/multithread.js").and_init().await.unwrap();
-  //   while let Ok(msg) = rx.recv_async().await {
-  //   //   console_ln!("Received: {}", msg);
-  //     init_voxel(&mt).await;
-  //   }
-  // });
   let s = local_res.send.clone();
   let window = web_sys::window().unwrap();
   let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
-    info!("origin {}", event.origin());
+    // info!("origin {}", event.origin());
 
     let data = event.data();
     let d = data.as_string().unwrap();
@@ -293,10 +275,36 @@ fn init(
 }
 
 fn update(
-  local_res: Res<LocalResource>,
+  mut local_res: ResMut<LocalResource>,
+  time: Res<Time>,
 ) {
   for bytes in local_res.recv.drain() {
-    info!("update() {:?}", bytes);
+    // info!("update() {:?}", bytes);
+    info!("bevy recv");
+  }
+
+  if local_res.timer.tick(time.delta()).just_finished() {
+    info!("send key");
+
+    let key: Vec<i64> = vec![0, -1, 0];
+      
+    let k: Vec<[u8; 8]> = key.iter().map(|a| a.to_be_bytes()).collect();
+    let mut bytes = Vec::new();
+    for k1 in k.iter() {
+      bytes.append(&mut k1.to_vec());
+    }
+    let str = array_bytes::bytes2hex("", &bytes);
+
+    // console_ln!("b {:?}", bytes.len());
+    // console_ln!("str {:?}", str);
+
+    // let k = String::from_utf8_lossy(&key);
+    let e = CustomEvent::new_with_event_init_dict(
+      "key", CustomEventInit::new().detail(&JsValue::from_str(&str))
+    ).unwrap();
+
+    let window = web_sys::window().unwrap();
+    let _ = window.dispatch_event(&e);
   }
 }
 
@@ -304,6 +312,7 @@ fn update(
 struct LocalResource {
   send: Sender<Vec<u8>>,
   recv: Receiver<Vec<u8>>,
+  timer: Timer,
 }
 
 impl Default for LocalResource {
@@ -312,6 +321,7 @@ impl Default for LocalResource {
     Self {
       send: send,
       recv: recv,
+      timer: Timer::from_seconds(1.0, TimerMode::Repeating),
     }
   }
 }
