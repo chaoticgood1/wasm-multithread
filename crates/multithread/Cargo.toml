@@ -44,4 +44,9 @@ features = [
   'HtmlInputElement',
   'MessageEvent',
   'InputEvent',
+
+  'Event',
+  'EventTarget',
+  'CustomEvent',
+  'CustomEventInit',
 ]
