@@ -45,17 +45,24 @@ pub fn app() {
       // window.post_message(&JsValue::from_str("[0, -1, 0]"), "/");
 
       let key: Vec<i64> = vec![0, -1, 0];
+      
       let k: Vec<[u8; 8]> = key.iter().map(|a| a.to_be_bytes()).collect();
+      let mut bytes = Vec::new();
+      for k1 in k.iter() {
+        bytes.append(&mut k1.to_vec());
+      }
+      let str = array_bytes::bytes2hex("", &bytes);
 
-      console_ln!("k {:?}", k);
+      // console_ln!("b {:?}", bytes.len());
+      // console_ln!("str {:?}", str);
 
       // let k = String::from_utf8_lossy(&key);
-      // let e = CustomEvent::new_with_event_init_dict(
-      //   "key", CustomEventInit::new().detail(&JsValue::from_str(&str))
-      // ).unwrap();
+      let e = CustomEvent::new_with_event_init_dict(
+        "key", CustomEventInit::new().detail(&JsValue::from_str(&str))
+      ).unwrap();
 
-      // let window = web_sys::window().unwrap();
-      // window.dispatch_event(&e);
+      let window = web_sys::window().unwrap();
+      let _ = window.dispatch_event(&e);
 
       // console_ln!("send");
 
@@ -68,8 +75,40 @@ pub fn app() {
 
   let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
     // console_ln!("text_changed");
-    let data = event.detail().as_string();
-    console_ln!("CustomEvent {:?}", data);
+    let data = event.detail().as_string().unwrap();
+    let bytes = array_bytes::hex2bytes(data).unwrap();
+    let a: Vec<i64> = bytes
+      .chunks(8)
+      .map(|a| {
+        let a1: [u8; 8] = a[0..8].try_into().unwrap();
+        i64::from_be_bytes(a1)
+      })
+      .collect();
+    console_ln!("a {:?}", a);
+    // console_ln!("bytes {:?}", bytes);
+
+
+
+
+
+    // let b = data.as_bytes();
+
+
+    // let v = b.to_vec();
+
+    // let a = <&[u8; 8]>::try_from(b);
+    // console_ln!("a {:?}", a);
+
+    // v.chunks(8).iter().map(|a| a).collect();
+
+
+    // for c in v.chunks(8) {
+    //   let l: [u8; 8] = c.iter()
+    //   console_ln!("c {:?}", i64::from_be_bytes(c));
+    // }
+
+
+    // console_ln!("CustomEvent {:?}", v);
 
 
 
@@ -79,7 +118,7 @@ pub fn app() {
   }) as Box<dyn FnMut(CustomEvent)>);
 
   let window = web_sys::window().unwrap();
-  window.add_event_listener_with_callback(
+  let _ = window.add_event_listener_with_callback(
     "key",
     callback.as_ref().unchecked_ref()
   );
@@ -106,7 +145,7 @@ pub async fn run(
       // console_ln!("callback: result: {:?}", r);
 
       let ab = r.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
-      let mut vec = js_sys::Uint8Array::new(ab);
+      let vec = js_sys::Uint8Array::new(ab);
 
       let bytes = vec.to_vec();
       let str = String::from_utf8_lossy(&bytes);
@@ -114,7 +153,7 @@ pub async fn run(
       console_ln!("str {:?}", str);
 
       let window = web_sys::window().unwrap();
-      window.post_message(&JsValue::from_str(&str), "/");
+      let _ = window.post_message(&JsValue::from_str(&str), "/");
     };
 
     pool_exec!(pool, move || {
@@ -227,7 +266,7 @@ impl Plugin for CustomPlugin {
 }
 
 fn init(
-  mut local_res: ResMut<LocalResource>,
+  local_res: ResMut<LocalResource>,
 ) {
   // let (tx, rx) = flume::unbounded();
   // tx.send("1");
@@ -245,7 +284,7 @@ fn init(
 
     let data = event.data();
     let d = data.as_string().unwrap();
-    s.send(d.as_bytes().to_vec());
+    let _ = s.send(d.as_bytes().to_vec());
   }) as Box<dyn FnMut(MessageEvent)>);
 
   window
