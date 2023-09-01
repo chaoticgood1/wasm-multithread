@@ -44,14 +44,22 @@ pub fn app() {
       // let window = web_sys::window().unwrap();
       // window.post_message(&JsValue::from_str("[0, -1, 0]"), "/");
 
-      let e = CustomEvent::new_with_event_init_dict(
-        "key", CustomEventInit::new().detail(&JsValue::from_str("[0, -1, 0]"))
-      ).unwrap();
+      let key: Vec<i64> = vec![0, -1, 0];
+      let k: Vec<[u8; 8]> = key.iter().map(|a| a.to_be_bytes()).collect();
 
-      let window = web_sys::window().unwrap();
-      window.dispatch_event(&e);
+      console_ln!("k {:?}", k);
 
-      console_ln!("send");
+      // let k = String::from_utf8_lossy(&key);
+      // let e = CustomEvent::new_with_event_init_dict(
+      //   "key", CustomEventInit::new().detail(&JsValue::from_str(&str))
+      // ).unwrap();
+
+      // let window = web_sys::window().unwrap();
+      // window.dispatch_event(&e);
+
+      // console_ln!("send");
+
+
       num += 1;
       sleep(1_000).await;
     }
@@ -60,6 +68,10 @@ pub fn app() {
 
   let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
     // console_ln!("text_changed");
+    let data = event.detail().as_string();
+    console_ln!("CustomEvent {:?}", data);
+
+
 
     // let window = web_sys::window().unwrap();
     // window.post_message(&JsValue::from_str("[0, -1, 0]"), "key_sender");
@@ -176,7 +188,7 @@ use flume;
 use flume::{Sender, Receiver};
 use voxels::chunk::chunk_manager::*;
 use web_sys::{HtmlElement, HtmlInputElement, MessageEvent, InputEvent, CustomEvent, CustomEventInit};
-
+use js_sys::JSON;
 
 pub fn test_run() {
   info!("test_run");

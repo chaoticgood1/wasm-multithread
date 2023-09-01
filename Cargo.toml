@@ -9,14 +9,13 @@ members = [
   "crates/*"
 ]
 
-
 [dependencies]
 bevy = "0.10.1"
 cfg-if = "1.0.0"
 
 multithread = { path = "crates/multithread" }
 voxels = { path = "crates/voxels" }
-
+array-bytes = "6.1.0"
 
 
 [dependencies.web-sys]
