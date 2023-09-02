@@ -55,10 +55,12 @@ pub async fn run(
   ab_js: ArrayBuffer, 
   ab_wasm: ArrayBuffer
 ) -> Result<(), JsValue> {
-  // let size = num_cpus::get();
-  let size = 8;
+  let window = web_sys::window().unwrap();
+  let threads = window.navigator().hardware_concurrency() as usize;
+  // let size = 8;
   // console_ln!("num_cpus::get() {}", num_cpus::get());
-  let pool = ThreadPool::new_with_arraybuffers(size, ab_js, ab_wasm)
+  console_ln!("threads {}", threads);
+  let pool = ThreadPool::new_with_arraybuffers(threads, ab_js, ab_wasm)
     .and_init().await?;
 
   while let Ok(msg) = recv.recv_async().await {
