@@ -1,4 +1,4 @@
-use crate::{data::{voxel_octree::{VoxelOctree, ParentValueType}, surface_nets::VoxelReuse}, utils::get_chunk_coords};
+use crate::{data::voxel_octree::{VoxelOctree, ParentValueType}, utils::get_chunk_coords};
 use super::*;
 use hashbrown::HashMap;
 use noise::*;

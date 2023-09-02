@@ -647,7 +647,7 @@ fn process_branch(
     let _ = nodes[*index].insert(Node::default());
   }
 
-  let mut parent = nodes.get_mut(*parent_index).unwrap().as_mut().unwrap();
+  let parent = nodes.get_mut(*parent_index).unwrap().as_mut().unwrap();
   parent.children[*layer_id as usize].clone_from(index);
   parent.descriptor = parent.descriptor | 0b_0000_0001_u8 << layer_id;
 }

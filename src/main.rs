@@ -26,7 +26,7 @@ fn main() {
   cfg_if! {
     if #[cfg(target_arch = "wasm32")] {
       app
-        .add_plugin(multithread::CustomPlugin);
+        .add_plugin(multithread::plugin::CustomPlugin);
     }
   }
 

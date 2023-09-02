@@ -708,7 +708,7 @@ pub fn get_dist(pos1: &[i64; 3], pos2: &[i64; 3]) -> f32 {
 /// Returns adjacent keys based on voxel scale
 /// Scale should be rational number, otherwise 
 /// the range will just round off to nearest value
-pub fn adj_keys_by_scale(world_key: [i64; 3], range: i64, scale: f32) -> Vec<[i64; 3]> {
+pub fn adj_keys_by_scale(world_key: [i64; 3], _range: i64, scale: f32) -> Vec<[i64; 3]> {
   // TODO: Implement the range parameter
 
   /*
