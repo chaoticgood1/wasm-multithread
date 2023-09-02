@@ -133,15 +133,24 @@ pub async fn run(
 
     let cb = move |result: Result<JsValue, JsValue>| {
       let r = result.unwrap();
-      // console_ln!("callback: result: {:?}", r);
-
       let ab = r.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
       let vec = js_sys::Uint8Array::new(ab);
 
       let bytes = vec.to_vec();
-      let str = String::from_utf8_lossy(&bytes);
+      // let str = array_bytes::bytes2hex("", bytes);
+      let octree = Octree {
+        key: msg,
+        data: bytes,
+      };
+      let encoded: Vec<u8> = bincode::serialize(&octree).unwrap();
+      let str = array_bytes::bytes2hex("", encoded);
+      
+
+      // let str = String::from_utf8_lossy(&bytes);
 
       // console_ln!("str {:?}", str);
+
+      // let json = JSON::stringify(&JsValue::)
 
       let window = web_sys::window().unwrap();
       let _ = window.post_message(&JsValue::from_str(&str), "/");
@@ -150,24 +159,7 @@ pub async fn run(
     pool_exec!(pool, move || {
       let data = compute_voxel(msg);
       Ok(wasm_mt::utils::u8arr_from_vec(&data).buffer().into())
-
-      // let bytes = data.to_vec();
-      // let str = String::from_utf8_lossy(&bytes);
-
-      // console_ln!("bytes {:?}", bytes);
-      // console_ln!("str {:?}", str);
-      // s.send(str.to_string());
-
-      // let window = web_sys::window().unwrap();
-      // window.post_message(&JsValue::from_str(&str), "/");
-
-      // console_ln!("Test");
-
-      // console_ln!("idx: {}", idx); // not necessarily ordered
-      // Ok(JsValue::NULL)
     }, cb);
-
-    
   }
 
   console_ln!("run");
@@ -266,7 +258,7 @@ fn init(
 
     let data = event.data();
     let d = data.as_string().unwrap();
-    let _ = s.send(d.as_bytes().to_vec());
+    let _ = s.send(array_bytes::hex2bytes(d).unwrap());
   }) as Box<dyn FnMut(MessageEvent)>);
 
   window
@@ -280,7 +272,9 @@ fn update(
 ) {
   for bytes in local_res.recv.drain() {
     // info!("update() {:?}", bytes);
-    info!("bevy recv");
+    
+    let octree: Octree = bincode::deserialize(&bytes[..]).unwrap();
+    // info!("bevy recv {:?}", octree.data);
   }
 
   if local_res.timer.tick(time.delta()).just_finished() {
@@ -324,4 +318,13 @@ impl Default for LocalResource {
       timer: Timer::from_seconds(1.0, TimerMode::Repeating),
     }
   }
+}
+
+
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+struct Octree {
+  key: [i64; 3],
+  data: Vec<u8>,
 }
