@@ -1,16 +1,8 @@
-use bevy::{prelude::*, window::PresentMode};
+use bevy::{prelude::*, window::PresentMode, tasks::{Task, AsyncComputeTaskPool}};
 use bevy_flycam::FlyCam;
-use cfg_if::cfg_if;
-use multithread::plugin::PluginResource;
-use multithread::plugin::send_key;
-use voxels::chunk::adjacent_keys;
+use flume::{Sender, Receiver};
+use voxels::chunk::{adjacent_keys, chunk_manager::{Chunk, ChunkManager}};
 
-
-cfg_if! {
-  if #[cfg(target_arch = "wasm32")] {
-    use multithread;
-  }
-}
 
 fn main() {
   let mut app = App::new();
@@ -26,13 +18,6 @@ fn main() {
       }),
       ..default()
     }));
-  
-  cfg_if! {
-    if #[cfg(target_arch = "wasm32")] {
-      app
-        .add_plugin(multithread::plugin::CustomPlugin);
-    }
-  }
 
   app
     .insert_resource(LocalResource::default())
@@ -74,8 +59,6 @@ fn add_cam(
     transform: Transform::from_xyz(6.0, 15.0, 6.0),
     ..Default::default()
   });
-
-  info!("add_cam");
 }
 
 fn load_chunks(
@@ -83,10 +66,21 @@ fn load_chunks(
   keyboard_input: Res<Input<KeyCode>>,
 ) {
   if keyboard_input.just_pressed(KeyCode::Space) {
+    let thread_pool = AsyncComputeTaskPool::get();
+    let manager = ChunkManager::default();
+    let noise = manager.noise.clone();
+
     let keys = adjacent_keys(&[0, 0, 0], 5, true);
     info!("Initialize {} keys", keys.len());
+
     for key in keys.iter() {
-      send_key(*key);
+      let s = local_res.send.clone();
+      let k = key.clone();
+      thread_pool.spawn(async move {
+        let chunk = ChunkManager::new_chunk(&k, 4, 4, noise);
+        let _ = s.send(chunk);
+      })
+      .detach();
     }
 
     local_res.keys_total = keys.len();
@@ -98,10 +92,18 @@ fn load_chunks(
 
 
 fn load_data(
-  plugin_res: Res<PluginResource>,
   mut local_res: ResMut<LocalResource>,
   time: Res<Time>,
 ) {
+  info!("update {:?}", time.delta_seconds());
+
+  let r = local_res.recv.clone();
+  for _ in r.drain() {
+    local_res.keys_count += 1;
+
+    // info!("{:?}", chunk.key);
+  }
+
   if local_res.keys_count != local_res.keys_total {
     local_res.duration += time.delta_seconds();
   }
@@ -109,15 +111,6 @@ fn load_data(
   if !local_res.done && local_res.keys_count == local_res.keys_total {
     local_res.done = true;
     info!("Total duration {}", local_res.duration);
-  }
-
-  for bytes in plugin_res.recv.drain() {
-    // info!("update() {:?}", bytes);
-    info!("wasm recieved");
-    local_res.keys_count += 1;
-    
-    // let octree: Octree = bincode::deserialize(&bytes[..]).unwrap();
-    // info!("bevy recv {:?}", octree.data);
   }
 }
 
@@ -128,22 +121,40 @@ struct LocalResource {
   keys_count: usize,
   keys_total: usize,
   done: bool,
+
+  send: Sender<Chunk>,
+  recv: Receiver<Chunk>,
 }
 
 impl Default for LocalResource {
   fn default() -> Self {
+    let (send, recv) = flume::unbounded();
+
     Self {
       duration: 0.0,
       keys_count: 0,
       keys_total: 0,
       done: true,
+      send: send,
+      recv: recv,
     }
   }
 }
 
 
 
+#[derive(Component)]
+struct ChunkData {
+  chunk: Chunk
+}
 
+impl Default for ChunkData {
+  fn default() -> Self {
+    Self {
+      chunk: Chunk::default(),
+    }
+  }
+}
 
 
 

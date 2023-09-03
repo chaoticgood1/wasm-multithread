@@ -47,3 +47,7 @@ wasm-bindgen-test = "0.3.0"
 [[example]]
 name = "load_data_async"
 path = "examples/load_data_async.rs"
+
+[[example]]
+name = "load_data_no_webworker"
+path = "examples/load_data_no_webworker.rs"
