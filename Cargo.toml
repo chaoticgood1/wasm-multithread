@@ -18,6 +18,8 @@ voxels = { path = "crates/voxels" }
 array-bytes = "6.1.0"
 bevy_flycam = { path = "crates/bevy_flycam" }
 
+instant = "0.1"
+
 
 [dependencies.web-sys]
 version = "0.3.61"

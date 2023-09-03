@@ -1,8 +1,8 @@
-use bevy::{prelude::*, window::PresentMode, tasks::{Task, AsyncComputeTaskPool}};
+use bevy::{prelude::*, window::PresentMode, tasks::{Task, AsyncComputeTaskPool}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}};
 use bevy_flycam::FlyCam;
 use flume::{Sender, Receiver};
 use voxels::chunk::{adjacent_keys, chunk_manager::{Chunk, ChunkManager}};
-
+use instant::Instant;
 
 fn main() {
   let mut app = App::new();
@@ -20,6 +20,8 @@ fn main() {
     }));
 
   app
+    // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+    // .add_plugin(LogDiagnosticsPlugin::default())
     .insert_resource(LocalResource::default())
     .add_startup_system(add_cam)
     .add_system(load_data)
@@ -66,23 +68,13 @@ fn load_chunks(
   keyboard_input: Res<Input<KeyCode>>,
 ) {
   if keyboard_input.just_pressed(KeyCode::Space) {
-    let thread_pool = AsyncComputeTaskPool::get();
-    let manager = ChunkManager::default();
-    let noise = manager.noise.clone();
+    
 
     let keys = adjacent_keys(&[0, 0, 0], 5, true);
     info!("Initialize {} keys", keys.len());
 
-    for key in keys.iter() {
-      let s = local_res.send.clone();
-      let k = key.clone();
-      thread_pool.spawn(async move {
-        let chunk = ChunkManager::new_chunk(&k, 4, 4, noise);
-        let _ = s.send(chunk);
-      })
-      .detach();
-    }
-
+    local_res.queued_keys.append(&mut keys.clone());
+    
     local_res.keys_total = keys.len();
     local_res.keys_count = 0;
     local_res.duration = 0.0;
@@ -95,10 +87,40 @@ fn load_data(
   mut local_res: ResMut<LocalResource>,
   time: Res<Time>,
 ) {
-  info!("update {:?}", time.delta_seconds());
+
+  let limit = 1.0 / 30.0;
+
+  if time.delta_seconds() < limit {
+    let mut current_time = 0.0;
+    let noise = local_res.manager.noise.clone();
+
+    loop {
+      let start = Instant::now();
+      if local_res.queued_keys.len() > 0 {
+        let key = local_res.queued_keys.pop().unwrap();
+        let chunk = ChunkManager::new_chunk(&key, 4, 4, noise);
+
+        let _ = local_res.send.send(chunk);
+      } else {
+        break;
+      }
+
+      let duration = start.elapsed();
+      current_time += duration.as_secs_f32();
+
+      if current_time > limit {
+        break;
+      }
+    }
+  }
+
+
+
+
+  // info!("update {:?}", time.delta_seconds());
 
   let r = local_res.recv.clone();
-  for _ in r.drain() {
+  for chunk in r.drain() {
     local_res.keys_count += 1;
 
     // info!("{:?}", chunk.key);
@@ -124,6 +146,9 @@ struct LocalResource {
 
   send: Sender<Chunk>,
   recv: Receiver<Chunk>,
+
+  queued_keys: Vec<[i64; 3]>,
+  manager: ChunkManager,
 }
 
 impl Default for LocalResource {
@@ -137,6 +162,8 @@ impl Default for LocalResource {
       done: true,
       send: send,
       recv: recv,
+      queued_keys: Vec::new(),
+      manager: ChunkManager::default(),
     }
   }
 }
