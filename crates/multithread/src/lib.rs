@@ -11,6 +11,7 @@ use web_sys::CustomEvent;
 use crate::plugin::Octree;
 
 pub mod plugin;
+mod test;
 
 #[wasm_bindgen]
 pub fn app() {

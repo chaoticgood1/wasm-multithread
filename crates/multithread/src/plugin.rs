@@ -18,19 +18,7 @@ impl Plugin for CustomPlugin {
 fn init(
   local_res: ResMut<LocalResource>,
 ) {
-  let s = local_res.send.clone();
-  let window = web_sys::window().unwrap();
-  let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
-    // info!("origin {}", event.origin());
-
-    let data = event.data();
-    let d = data.as_string().unwrap();
-    let _ = s.send(array_bytes::hex2bytes(d).unwrap());
-  }) as Box<dyn FnMut(MessageEvent)>);
-
-  window
-    .set_onmessage(Some(cb2.as_ref().unchecked_ref()));
-  cb2.forget();
+  receive_octree_data(local_res.send.clone());
 
 
   for i in 0..20000 {
@@ -63,7 +51,23 @@ fn update(
 }
 
 
-fn send_key(key: [i64; 3]) {
+pub fn receive_octree_data(send: Sender<Vec<u8>>) {
+  let window = web_sys::window().unwrap();
+  let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
+    info!("origin {}", event.origin());
+
+    let data = event.data();
+    let d = data.as_string().unwrap();
+    let _ = send.send(array_bytes::hex2bytes(d).unwrap());
+  }) as Box<dyn FnMut(MessageEvent)>);
+
+  window
+    .set_onmessage(Some(cb2.as_ref().unchecked_ref()));
+  cb2.forget();
+}
+
+
+pub fn send_key(key: [i64; 3]) {
   let k: Vec<[u8; 8]> = key.iter().map(|a| a.to_be_bytes()).collect();
   let mut bytes = Vec::new();
   for k1 in k.iter() {
@@ -106,3 +110,61 @@ pub struct Octree {
   pub key: [i64; 3],
   pub data: Vec<u8>,
 }
+
+
+
+/* 
+#[cfg(test)]
+mod tests {
+  use super::{LocalResource, send_key, receive_octree_data};
+  use voxels::chunk::adjacent_keys;
+  use wasm_bindgen_futures::spawn_local;
+  use wasm_mt::utils::console_ln;
+  use wasm_bindgen_test::*;
+
+  #[wasm_bindgen_test]
+  async fn test_loading_voxels() -> Result<(), String> {
+    
+
+    // spawn_local(async move {
+    //   // loop {
+
+    //   // }
+    // });
+    console_ln!("test1");
+    async move {
+      console_ln!("test2");
+
+      let res = LocalResource::default();
+      let keys = adjacent_keys(&[0, 0, 0], 1, true);
+      for key in keys.iter() {
+        send_key(*key);
+      }
+      
+      receive_octree_data(res.send.clone());
+
+      let mut cur_index = 0;
+      while let Ok(_) = res.recv.recv_async().await {
+        cur_index += 1;
+
+        console_ln!("cur_index {}", cur_index);
+
+        if cur_index >= keys.len() {
+          console_ln!("Break");
+          return;
+        }
+      }
+    }.await;
+
+
+    Ok(())
+  }
+}
+ */
+
+
+
+
+
+
+ 
