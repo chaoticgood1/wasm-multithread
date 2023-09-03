@@ -13,9 +13,10 @@ members = [
 bevy = "0.10.1"
 cfg-if = "1.0.0"
 
-multithread = { path = "crates/multithread" }
+# multithread = { path = "crates/multithread" }
 voxels = { path = "crates/voxels" }
 array-bytes = "6.1.0"
+bevy_flycam = { path = "crates/bevy_flycam" }
 
 
 [dependencies.web-sys]
@@ -39,3 +40,9 @@ wasm-bindgen-futures = "0.4.19"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.0"
+
+
+
+[[example]]
+name = "load_data_async"
+path = "examples/load_data_async.rs"

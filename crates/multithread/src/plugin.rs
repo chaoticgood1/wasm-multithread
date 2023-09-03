@@ -8,15 +8,15 @@ use wasm_bindgen::prelude::*;
 pub struct CustomPlugin;
 impl Plugin for CustomPlugin {
   fn build(&self, app: &mut App) {
-    app
-      .insert_resource(LocalResource::default())
-      .add_startup_system(init)
-      .add_system(update);
+    // app
+    //   .insert_resource(PluginResource::default())
+    //   .add_startup_system(init)
+    //   .add_system(update);
   }
 }
 
 fn init(
-  local_res: ResMut<LocalResource>,
+  local_res: ResMut<PluginResource>,
 ) {
   receive_octree_data(local_res.send.clone());
 
@@ -28,7 +28,7 @@ fn init(
 }
 
 fn update(
-  mut local_res: ResMut<LocalResource>,
+  mut local_res: ResMut<PluginResource>,
   time: Res<Time>,
 ) {
   for bytes in local_res.recv.drain() {
@@ -85,19 +85,21 @@ pub fn send_key(key: [i64; 3]) {
 
 
 #[derive(Resource)]
-struct LocalResource {
-  send: Sender<Vec<u8>>,
-  recv: Receiver<Vec<u8>>,
+pub struct PluginResource {
   timer: Timer,
+  send: Sender<Vec<u8>>,
+  
+  pub recv: Receiver<Vec<u8>>,
 }
 
-impl Default for LocalResource {
+impl Default for PluginResource {
   fn default() -> Self {
     let (send, recv) = flume::unbounded();
     Self {
+      timer: Timer::from_seconds(100.0, TimerMode::Repeating),
+
       send: send,
       recv: recv,
-      timer: Timer::from_seconds(100.0, TimerMode::Repeating),
     }
   }
 }
@@ -110,61 +112,3 @@ pub struct Octree {
   pub key: [i64; 3],
   pub data: Vec<u8>,
 }
-
-
-
-/* 
-#[cfg(test)]
-mod tests {
-  use super::{LocalResource, send_key, receive_octree_data};
-  use voxels::chunk::adjacent_keys;
-  use wasm_bindgen_futures::spawn_local;
-  use wasm_mt::utils::console_ln;
-  use wasm_bindgen_test::*;
-
-  #[wasm_bindgen_test]
-  async fn test_loading_voxels() -> Result<(), String> {
-    
-
-    // spawn_local(async move {
-    //   // loop {
-
-    //   // }
-    // });
-    console_ln!("test1");
-    async move {
-      console_ln!("test2");
-
-      let res = LocalResource::default();
-      let keys = adjacent_keys(&[0, 0, 0], 1, true);
-      for key in keys.iter() {
-        send_key(*key);
-      }
-      
-      receive_octree_data(res.send.clone());
-
-      let mut cur_index = 0;
-      while let Ok(_) = res.recv.recv_async().await {
-        cur_index += 1;
-
-        console_ln!("cur_index {}", cur_index);
-
-        if cur_index >= keys.len() {
-          console_ln!("Break");
-          return;
-        }
-      }
-    }.await;
-
-
-    Ok(())
-  }
-}
- */
-
-
-
-
-
-
- 

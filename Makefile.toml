@@ -4,7 +4,7 @@ dependencies = ["clear", "web-wasm-bindgen-cli", "compile", "client"]
 [tasks.compile]
 script = '''
 cargo build --release --target wasm32-unknown-unknown
-wasm-bindgen --out-name ironverse-editor --out-dir assets/wasm --target web target/wasm32-unknown-unknown/release/wasm_multithread.wasm
+wasm-bindgen --out-name wasm-multithread --out-dir assets/wasm --target web target/wasm32-unknown-unknown/release/wasm_multithread.wasm
 '''
 
 [tasks.web_low]
@@ -17,10 +17,10 @@ wasm-bindgen --out-name ironverse-editor --out-dir assets/wasm --target web targ
 '''
 
 
-# [tasks.client]
-# script = '''
-# basic-http-server .
-# '''
+[tasks.client]
+script = '''
+basic-http-server .
+'''
 
 # [tasks.client]
 # script = '''
@@ -30,13 +30,13 @@ wasm-bindgen --out-name ironverse-editor --out-dir assets/wasm --target web targ
 # ./server.py
 # '''
 
-[tasks.client]
-script = '''
-cd crates/multithread/
-./build.sh
-cd ../../
-basic-http-server .
-'''
+# [tasks.client]
+# script = '''
+# cd crates/multithread/
+# ./build.sh
+# cd ../../
+# basic-http-server .
+# '''
 
 [tasks.web-wasm-bindgen-cli]
 install_crate = {crate_name = "wasm-bindgen-cli", binary = "wasm-bindgen", test_arg="--help", version="0.2.87"}
@@ -67,3 +67,13 @@ clear
 clear
 cargo run --features low --no-default-features
 '''
+
+
+[tasks.wasm]
+script = '''
+cargo build --release --example ${@} --target wasm32-unknown-unknown
+wasm-bindgen --out-name wasm_multithread --out-dir assets/wasm --target web target/wasm32-unknown-unknown/release/examples/${@}.wasm
+basic-http-server .
+'''
+
+
