@@ -8,10 +8,11 @@ use wasm_bindgen::prelude::*;
 pub struct CustomPlugin;
 impl Plugin for CustomPlugin {
   fn build(&self, app: &mut App) {
-    // app
-    //   .insert_resource(PluginResource::default())
-    //   .add_startup_system(init)
-    //   .add_system(update);
+    app
+      .insert_resource(PluginResource::default())
+      .add_startup_system(init)
+      // .add_system(update)
+      ;
   }
 }
 
@@ -21,10 +22,10 @@ fn init(
   receive_octree_data(local_res.send.clone());
 
 
-  for i in 0..20000 {
-    let key = [0, -1, 0];
-    send_key(key);
-  }
+  // for i in 0..20000 {
+  //   let key = [0, -1, 0];
+  //   send_key(key);
+  // }
 }
 
 fn update(
@@ -54,7 +55,7 @@ fn update(
 pub fn receive_octree_data(send: Sender<Vec<u8>>) {
   let window = web_sys::window().unwrap();
   let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
-    info!("origin {}", event.origin());
+    // info!("origin {}", event.origin());
 
     let data = event.data();
     let d = data.as_string().unwrap();

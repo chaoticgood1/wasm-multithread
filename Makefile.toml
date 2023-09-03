@@ -76,4 +76,14 @@ wasm-bindgen --out-name wasm_multithread --out-dir assets/wasm --target web targ
 basic-http-server .
 '''
 
+[tasks.wasm_full]
+script = '''
+cd crates/multithread/
+./build.sh
+cd ../../
+cargo build --release --example ${@} --target wasm32-unknown-unknown
+wasm-bindgen --out-name wasm_multithread --out-dir assets/wasm --target web target/wasm32-unknown-unknown/release/examples/${@}.wasm
+basic-http-server .
+'''
+
 

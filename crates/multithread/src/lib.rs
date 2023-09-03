@@ -58,8 +58,6 @@ pub async fn run(
 ) -> Result<(), JsValue> {
   let window = web_sys::window().unwrap();
   let threads = window.navigator().hardware_concurrency() as usize;
-  // let size = 8;
-  // console_ln!("num_cpus::get() {}", num_cpus::get());
   console_ln!("threads {}", threads);
   let pool = ThreadPool::new_with_arraybuffers(threads, ab_js, ab_wasm)
     .and_init().await?;

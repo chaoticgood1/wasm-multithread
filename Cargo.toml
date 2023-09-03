@@ -13,7 +13,7 @@ members = [
 bevy = "0.10.1"
 cfg-if = "1.0.0"
 
-# multithread = { path = "crates/multithread" }
+multithread = { path = "crates/multithread" }
 voxels = { path = "crates/voxels" }
 array-bytes = "6.1.0"
 bevy_flycam = { path = "crates/bevy_flycam" }
@@ -37,6 +37,7 @@ flume = "0.10.14"
 js-sys = "0.3"
 wasm-bindgen = "0.2.87"
 wasm-bindgen-futures = "0.4.19"
+bincode = "1.3.3"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.0"
