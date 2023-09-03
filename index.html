@@ -31,6 +31,10 @@
         margin: 20px;
         float: left;
       }
+
+      .concurrency {
+        display: none;
+      }
     </style>
   </head>
   <script type="module">
@@ -45,13 +49,8 @@
       startApp('multithread');
     </script>
 
-
-
     <div class='concurrency'>
-      <p id='concurrency-amt'>Concurrency: 1</p>
-      <br/>
-      <input type="range" id="concurrency" min="0" max="1" />
+      <input type="range" id="concurrency" value="2" />
     </div>
-    <script src='index.js'></script>
   </body>
 </html>
