@@ -7,7 +7,7 @@ use wasm_mt::utils::{console_ln, fetch_as_arraybuffer, sleep};
 use js_sys::ArrayBuffer;
 use voxels::chunk::chunk_manager::*;
 use flume::{Sender, Receiver};
-use web_sys::CustomEvent;
+use web_sys::{CustomEvent, MessageEvent};
 use crate::plugin::Octree;
 
 pub mod plugin;
@@ -15,14 +15,45 @@ mod test;
 
 #[wasm_bindgen]
 pub fn app() {
+  let (send_threads_count, recv_threads_count) = flume::unbounded();
+  default(recv_threads_count);
+  changeable_num_of_threads(send_threads_count);
+}
+
+fn default(recv_threads_count: Receiver<usize>) {
+  let window = web_sys::window().unwrap();
+  let threads = window.navigator().hardware_concurrency() as usize;
+
   let (send_queue, recv_queue) = flume::unbounded();
   spawn_local(async move {
     let ab_js = fetch_as_arraybuffer("crates/multithread/pkg/multithread.js").await.unwrap();
     let ab_wasm = fetch_as_arraybuffer("crates/multithread/pkg/multithread_bg.wasm").await.unwrap();
-    run(recv_queue, ab_js, ab_wasm).await.unwrap();
+    run(recv_queue, recv_threads_count, ab_js, ab_wasm).await.unwrap();
   });
-
+  
   recv_key_from_wasm(send_queue);
+}
+
+
+fn changeable_num_of_threads(send: Sender<usize>) {
+  let cb = Closure::wrap(Box::new(move |event: MessageEvent | {
+    let input = event
+      .current_target()
+      .unwrap()
+      .dyn_into::<web_sys::HtmlInputElement>()
+      .unwrap();
+    let threads: usize = input.value().parse().unwrap();
+    send.send(threads);
+  }) as Box<dyn FnMut(MessageEvent)>);
+
+  let window = web_sys::window().expect("no global `window` exists");
+  let document = window.document().expect("should have a document on window");
+  let e = document.get_element_by_id("concurrency").unwrap();
+  let _ = e
+    .add_event_listener_with_callback("input", &cb.as_ref()
+    .unchecked_ref());
+
+  cb.forget();
 }
 
 fn recv_key_from_wasm(send: Sender<[i64; 3]>) {
@@ -53,11 +84,15 @@ fn recv_key_from_wasm(send: Sender<[i64; 3]>) {
 
 pub async fn run(
   recv: Receiver<[i64; 3]>,
+  recv_threads_count: Receiver<usize>,
   ab_js: ArrayBuffer, 
   ab_wasm: ArrayBuffer
 ) -> Result<(), JsValue> {
-  let window = web_sys::window().unwrap();
-  let threads = window.navigator().hardware_concurrency() as usize;
+  while let Ok(threads) = recv_threads_count.recv_async().await {
+
+  }
+
+  
   console_ln!("threads {}", threads);
   let pool = ThreadPool::new_with_arraybuffers(threads, ab_js, ab_wasm)
     .and_init().await?;
