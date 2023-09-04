@@ -82,10 +82,17 @@ fn add_cam(
 
 
   let manager = ChunkManager::default();
-  for _ in 0..20 {
-    // send_key([0, -1, 0]);
-    let chunk = ChunkManager::new_chunk(&[0, 0, 0], 4, 4, manager.noise);
-    send_chunk(chunk);
+  // for _ in 0..20 {
+  //   send_key([0, -1, 0]);
+    // let chunk = ChunkManager::new_chunk(&[0, 0, 0], 4, 4, manager.noise);
+    // send_chunk(chunk);
+  // }
+  let keys = adjacent_keys(&[0, 0, 0], 1, true);
+  for key in keys.iter() {
+    send_key(*key);
+
+    // let chunk = ChunkManager::new_chunk(key, 4, 4, manager.noise);
+    // send_chunk(chunk);
   }
   
 }
@@ -95,7 +102,7 @@ fn load_chunks(
   keyboard_input: Res<Input<KeyCode>>,
 ) {
   if keyboard_input.just_pressed(KeyCode::Space) {
-    let keys = adjacent_keys(&[0, 0, 0], 5, true);
+    let keys = adjacent_keys(&[0, 0, 0], 1, true);
     info!("Initialize {} keys", keys.len());
     for key in keys.iter() {
       send_key(*key);
@@ -125,7 +132,7 @@ fn load_data(
 
   for bytes in plugin_res.recv.drain() {
     // info!("update() {:?}", bytes);
-    info!("wasm recieved");
+    info!("wasm_recv_data");
     local_res.keys_count += 1;
     
     let octree: Octree = bincode::deserialize(&bytes[..]).unwrap();
@@ -139,7 +146,7 @@ fn load_data(
   }
 
   for chunk in plugin_res.recv_mesh.drain() {
-    info!("recv wasm chunk {:?}", chunk.key);
+    info!("wasm_recv_mesh {:?}", chunk.key);
   }
 }
 

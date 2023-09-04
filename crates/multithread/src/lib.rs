@@ -75,7 +75,7 @@ fn recv_chunk_from_wasm(send: Sender<Chunk>) {
     let bytes = array_bytes::hex2bytes(data).unwrap();
     let chunk: Chunk = bincode::deserialize(&bytes).unwrap();
 
-    console_ln!("recv_chunk_from_wasm {:?}", chunk.key);
+    console_ln!("calc_chunk {:?}", chunk.key);
     let _ = send.send(chunk);
   }) as Box<dyn FnMut(CustomEvent)>);
 
@@ -99,47 +99,49 @@ async fn load_data(
     recv_chunk: recv_chunk.clone(),
   }));
 
-  while let Ok(_) = (ChannelFuture { unit: r.clone() }).await {
-    console_ln!("Test");
+  while let Ok(res) = (
+    ChannelFuture { unit: r.clone(), recv: recv.clone(), recv_chunk: recv_chunk.clone() }
+  ).await {
+    console_ln!("res {} {}", res.keys.len(), res.chunks.len());
 
-    // for msg in recv.drain() {
-    //   let cb = move |result: Result<JsValue, JsValue>| {
-    //     let r = result.unwrap();
-    //     let ab = r.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
-    //     let vec = js_sys::Uint8Array::new(ab);
+    for key in res.keys.iter() {
+      let key = key.clone();
+      let cb = move |result: Result<JsValue, JsValue>| {
+        let r = result.unwrap();
+        let ab = r.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
+        let vec = js_sys::Uint8Array::new(ab);
     
-    //     let bytes = vec.to_vec();
-    //     let octree = Octree {
-    //       key: msg,
-    //       data: bytes,
-    //     };
+        let bytes = vec.to_vec();
+        let octree = Octree {
+          key: key,
+          data: bytes,
+        };
         
-    //     let encoded: Vec<u8> = bincode::serialize(&octree).unwrap();
-    //     let str = array_bytes::bytes2hex("", encoded);
+        let encoded: Vec<u8> = bincode::serialize(&octree).unwrap();
+        let str = array_bytes::bytes2hex("", encoded);
   
-    //     let e = CustomEvent::new_with_event_init_dict(
-    //       &EventType::KeyRecv.to_string(), CustomEventInit::new().detail(&JsValue::from_str(&str))
-    //     ).unwrap();
+        let e = CustomEvent::new_with_event_init_dict(
+          &EventType::KeyRecv.to_string(), CustomEventInit::new().detail(&JsValue::from_str(&str))
+        ).unwrap();
   
-    //     let window = web_sys::window().unwrap();
-    //     let _ = window.dispatch_event(&e);
-    //   };
+        let window = web_sys::window().unwrap();
+        let _ = window.dispatch_event(&e);
+      };
     
-    //   pool_exec!(pool, move || {
-    //     let data = compute_voxel(msg);
-    //     Ok(wasm_mt::utils::u8arr_from_vec(&data).buffer().into())
-    //   }, cb);
-    // }
+      pool_exec!(pool, move || {
+        let data = compute_voxel(key);
+        Ok(wasm_mt::utils::u8arr_from_vec(&data).buffer().into())
+      }, cb);
+    }
 
-    for chunk in recv_chunk.drain() {
+    for chunk in res.chunks.iter() {
+      let chunk = chunk.clone();
       // console_ln!("process_chunk2 {:?}", chunk.key);
 
       let cb = move |result: Result<JsValue, JsValue>| {
         let r = result.unwrap();
         let ab = r.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
         let vec = js_sys::Uint8Array::new(ab).to_vec();
-  
-        // let encoded: Vec<u8> = bincode::deserialize(&vec).unwrap();
         let str = array_bytes::bytes2hex("", vec);
   
         console_ln!("recv_chunk test");
@@ -156,7 +158,6 @@ async fn load_data(
         let encoded: Vec<u8> = bincode::serialize(&mesh).unwrap();
   
         Ok(wasm_mt::utils::u8arr_from_vec(&encoded).buffer().into())
-        // Ok(JsValue::default())
       }, cb);
     }
     
@@ -209,21 +210,48 @@ type ChannerRef = Rc<RefCell<Channels>>;
 
 struct ChannelFuture {
   unit: ChannerRef,
+  recv: Receiver<[i64; 3]>,
+  recv_chunk: Receiver<Chunk>,
 }
 
 use std::pin::Pin;
 impl Future for ChannelFuture {
-  type Output = Result<bool, String>;
+  type Output = Result<Res, String>;
   fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
-    let recv = self.unit.borrow().recv.clone();
-    let recv_chunk = self.unit.borrow().recv_chunk.clone();
+    // let recv = self.unit.borrow().recv.clone();
+    // let recv_chunk = self.unit.borrow().recv_chunk.clone();
+
+    let recv = self.recv.clone();
+    let recv_chunk = self.recv_chunk.clone();
     
-    if recv_chunk.is_empty() {
-      Poll::Pending
-    } else {
-      Poll::Ready(Ok(true))
+    let mut res = Res::default();
+    for key in recv.drain() {
+      res.keys.push(key);
     }
+    for chunk in recv_chunk.drain() {
+      res.chunks.push(chunk);
+    }
+
+    // let mut m = self.unit.borrow_mut();
+    // m.recv = self.recv.clone();
+    // m.recv_chunk = self.recv_chunk.clone();
+
+    if !res.keys.is_empty() || !res.chunks.is_empty() {
+      return Poll::Ready(Ok(res));
+    }
+
+    Poll::Pending
   }
 }
 
+// async fn load_res(unit: ChannerRef) -> Result<Res, String> {
+//   ChannelFuture {
+//     unit,
+//   };
+// }
 
+#[derive(Default)]
+struct Res {
+  keys: Vec<[i64; 3]>,
+  chunks: Vec<Chunk>,
+}
