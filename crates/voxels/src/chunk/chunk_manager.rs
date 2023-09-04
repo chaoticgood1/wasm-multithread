@@ -2,6 +2,7 @@ use crate::{data::voxel_octree::{VoxelOctree, ParentValueType}, utils::get_chunk
 use super::*;
 use hashbrown::HashMap;
 use noise::*;
+use serde::{Serialize, Deserialize};
 
 #[derive(Default)]
 pub struct LoadedChunk {
@@ -15,7 +16,7 @@ pub struct SubscribeData {
   pub rays: Vec<[f32; 3]>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ChunkMode {
   None,
   Loaded,
@@ -30,7 +31,7 @@ pub enum Deployment {
   Development,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Chunk {
   pub key: [i64; 3],
   pub octree: VoxelOctree,

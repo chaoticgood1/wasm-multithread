@@ -1,5 +1,6 @@
 use crate::utils::get_length;
 use super::surface_nets::*;
+use serde::{Serialize, Deserialize};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ParentValueType {
@@ -15,7 +16,7 @@ pub enum VoxelMode {
   DualContour,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct VoxelOctree {
   pub data: Vec<u8>,
   pub size: u32,
@@ -24,19 +25,18 @@ pub struct VoxelOctree {
   pub layer_section_cache: Vec<(usize, usize)>,
 }
 
-#[derive(Default, Clone, Debug)]
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct MeshData {
+  pub key: [i64; 3],
   pub positions: Vec<[f32; 3]>,
   pub normals: Vec<[f32; 3]>,
   pub uvs: Vec<[f32; 2]>,
   pub indices: Vec<u32>,
   pub weights: Vec<[f32; 4]>,
-  pub types_1: Vec<[u32; 4]>,
-  pub types_2: Vec<[u32; 4]>,
-  pub voxel_positions: Vec<[f32; 3]>,
-
   pub colors: Vec<[f32; 3]>,
 }
+
 
 #[derive(Default, Clone, Debug)]
 struct Node {
@@ -405,9 +405,16 @@ impl VoxelOctree {
     voxel_reuse: &mut VoxelReuse,
     colors: &Vec<[f32; 3]>,
     scale: f32,
+    key: [i64; 3],
   ) -> MeshData {
     match mode {
-      VoxelMode::SurfaceNets => get_surface_nets(self, voxel_reuse, colors, scale),
+      VoxelMode::SurfaceNets => get_surface_nets(
+        self, 
+        voxel_reuse, 
+        colors, 
+        scale,
+        key
+      ),
       _ => panic!("VoxelMode {:?} implementation not existing yet", mode),
     }
   }

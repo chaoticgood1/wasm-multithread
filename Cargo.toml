@@ -53,3 +53,7 @@ path = "examples/load_data_async.rs"
 [[example]]
 name = "load_data_no_webworker"
 path = "examples/load_data_no_webworker.rs"
+
+[[example]]
+name = "load_data_and_mesh"
+path = "examples/load_data_and_mesh.rs"

@@ -94,6 +94,7 @@ pub fn get_surface_nets(
   voxel_reuse: &mut VoxelReuse,
   colors: &Vec<[f32; 3]>,
   scale: f32,
+  key: [i64; 3],
 ) -> MeshData {
   let voxel_start = 0;
   let voxel_end = octree.get_size();
@@ -109,6 +110,7 @@ pub fn get_surface_nets(
   }
 
   let mut data = MeshData::default();
+  data.key = key;
 
   // Checking for each grid
   let start = 0;
@@ -699,7 +701,6 @@ pub fn has_position_indices_for_x(back_index: u32, back_bottom_index: u32, botto
 pub fn has_position_indices_for_y(right_back_index: u32, right_index: u32, back_index: u32) -> bool {
   right_back_index != std::u32::MAX && right_index != std::u32::MAX && back_index != std::u32::MAX
 }
-
 
 pub fn has_position_indices_for_z(right_index: u32, right_bottom_index: u32, bottom_index: u32) -> bool {
   right_index != std::u32::MAX

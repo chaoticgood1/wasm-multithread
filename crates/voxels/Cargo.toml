@@ -15,6 +15,7 @@ num-derive = "0.3.2"
 hashbrown = "0.11"
 parry3d = "0.7"
 ron = "0.7"
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.3"

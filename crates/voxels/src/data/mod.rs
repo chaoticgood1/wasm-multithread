@@ -1,5 +1,3 @@
-pub mod cubic;
-pub mod dual_contour;
 pub mod surface_nets;
 pub mod voxel_octree;
 

@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use flume;
 use flume::{Sender, Receiver};
-
+use voxels::chunk::chunk_manager::Chunk;
+use voxels::data::voxel_octree::MeshData;
 use web_sys::{MessageEvent, CustomEvent, CustomEventInit};
 use wasm_bindgen::prelude::*;
 
@@ -10,9 +11,7 @@ impl Plugin for CustomPlugin {
   fn build(&self, app: &mut App) {
     app
       .insert_resource(PluginResource::default())
-      .add_startup_system(init)
-      // .add_system(update)
-      ;
+      .add_startup_system(init);
   }
 }
 
@@ -20,51 +19,42 @@ fn init(
   local_res: ResMut<PluginResource>,
 ) {
   receive_octree_data(local_res.send.clone());
-
-
-  // for i in 0..20000 {
-  //   let key = [0, -1, 0];
-  //   send_key(key);
-  // }
-}
-
-fn update(
-  mut local_res: ResMut<PluginResource>,
-  time: Res<Time>,
-) {
-  for bytes in local_res.recv.drain() {
-    // info!("update() {:?}", bytes);
-    info!("wasm recieved");
-    
-    let octree: Octree = bincode::deserialize(&bytes[..]).unwrap();
-    // info!("bevy recv {:?}", octree.data);
-  }
-
-  if local_res.timer.tick(time.delta()).just_finished() {
-    // info!("send key");
-
-    // for i in 0..20 {
-    //   let key = [0, -1, 0];
-    //   send_key(key);
-    // }
-    
-  }
+  receive_mesh(local_res.send_mesh.clone());
 }
 
 
 pub fn receive_octree_data(send: Sender<Vec<u8>>) {
+  let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
+    let data = event.detail().as_string().unwrap();
+    let _ = send.send(array_bytes::hex2bytes(data).unwrap());
+  }) as Box<dyn FnMut(CustomEvent)>);
+
   let window = web_sys::window().unwrap();
-  let cb2 = Closure::wrap(Box::new(move |event: MessageEvent| {
-    // info!("origin {}", event.origin());
+  let _ = window.add_event_listener_with_callback(
+    &EventType::KeyRecv.to_string(),
+    callback.as_ref().unchecked_ref()
+  );
 
-    let data = event.data();
-    let d = data.as_string().unwrap();
-    let _ = send.send(array_bytes::hex2bytes(d).unwrap());
-  }) as Box<dyn FnMut(MessageEvent)>);
+  callback.forget();
+}
 
-  window
-    .set_onmessage(Some(cb2.as_ref().unchecked_ref()));
-  cb2.forget();
+pub fn receive_mesh(send: Sender<MeshData>) {
+  let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
+    info!("receive_mesh()");
+
+    let data = event.detail().as_string().unwrap();
+    let bytes = array_bytes::hex2bytes(data).unwrap();
+    let mesh: MeshData = bincode::deserialize(&bytes).unwrap();
+    let _ = send.send(mesh);
+  }) as Box<dyn FnMut(CustomEvent)>);
+
+  let window = web_sys::window().unwrap();
+  let _ = window.add_event_listener_with_callback(
+    &EventType::ChunkRecv.to_string(),
+    callback.as_ref().unchecked_ref()
+  );
+
+  callback.forget();
 }
 
 
@@ -77,7 +67,19 @@ pub fn send_key(key: [i64; 3]) {
   let str = array_bytes::bytes2hex("", &bytes);
 
   let e = CustomEvent::new_with_event_init_dict(
-    "key", CustomEventInit::new().detail(&JsValue::from_str(&str))
+    &EventType::KeySend.to_string(), CustomEventInit::new().detail(&JsValue::from_str(&str))
+  ).unwrap();
+
+  let window = web_sys::window().unwrap();
+  let _ = window.dispatch_event(&e);
+}
+
+pub fn send_chunk(chunk: Chunk) {
+  let encoded: Vec<u8> = bincode::serialize(&chunk).unwrap();
+  let str = array_bytes::bytes2hex("", &encoded);
+
+  let e = CustomEvent::new_with_event_init_dict(
+    &EventType::ChunkSend.to_string(), CustomEventInit::new().detail(&JsValue::from_str(&str))
   ).unwrap();
 
   let window = web_sys::window().unwrap();
@@ -89,18 +91,23 @@ pub fn send_key(key: [i64; 3]) {
 pub struct PluginResource {
   timer: Timer,
   send: Sender<Vec<u8>>,
-  
   pub recv: Receiver<Vec<u8>>,
+
+  send_mesh: Sender<MeshData>,
+  pub recv_mesh: Receiver<MeshData>,
 }
 
 impl Default for PluginResource {
   fn default() -> Self {
     let (send, recv) = flume::unbounded();
+    let (send_mesh, recv_mesh) = flume::unbounded();
     Self {
       timer: Timer::from_seconds(100.0, TimerMode::Repeating),
 
       send: send,
       recv: recv,
+      send_mesh: send_mesh,
+      recv_mesh: recv_mesh,
     }
   }
 }
@@ -108,8 +115,11 @@ impl Default for PluginResource {
 
 use serde::{Serialize, Deserialize};
 
+use crate::EventType;
+
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Octree {
   pub key: [i64; 3],
   pub data: Vec<u8>,
 }
+
