@@ -7,7 +7,7 @@ use multithread::plugin::Octree;
 use multithread::plugin::PluginResource;
 use multithread::plugin::send_chunk;
 use multithread::plugin::send_key;
-use voxels::chunk::adjacent_keys;
+use voxels::chunk::{adjacent_keys, world_pos_to_key};
 use voxels::chunk::chunk_manager::Chunk;
 use voxels::chunk::chunk_manager::ChunkManager;
 use voxels::data::voxel_octree::VoxelOctree;
@@ -55,13 +55,23 @@ fn add_cam(
   mut commands: Commands,
   local_res: Res<LocalResource>,
 ) {
+  let pos = Vec3::new(0.91, 11.64, -8.82);
+  let key = world_pos_to_key(
+    &[pos.x as i64, pos.y as i64, pos.z as i64], 
+    local_res.manager.seamless_size()
+  );
+
   commands
     .spawn(Camera3dBundle {
-      transform: Transform::from_xyz(0.91, 11.64, -8.82)
+      transform: Transform::from_translation(pos)
         .looking_to(Vec3::new(0.03, -0.80, 0.59), Vec3::Y),
       ..Default::default()
     })
-    .insert(FlyCam);
+    .insert(FlyCam)
+    .insert(Player {
+      prev_key: [i64::MIN, i64::MIN, i64::MIN],
+      key: key,
+    });
 
   // Sun
   commands.spawn(DirectionalLightBundle {
@@ -102,32 +112,65 @@ fn add_cam(
 }
 
 fn load_chunks(
-  mut local_res: ResMut<LocalResource>,
+  local_res: Res<LocalResource>,
   keyboard_input: Res<Input<KeyCode>>,
 
   mut commands: Commands,
   chunk_graphics: Query<(Entity, &ChunkGraphics)>,
+
+  mut players: Query<(&Transform, &mut Player)>,
 ) {
-  if keyboard_input.just_pressed(KeyCode::Space) {
-    let keys = adjacent_keys(&[0, 0, 0], 1, true);
-    info!("Initialize {} keys", keys.len());
+  for (trans, mut player) in &mut players {
+    let t = trans.translation;
+    let key = world_pos_to_key(
+      &[t.x as i64, t.y as i64, t.z as i64], 
+      local_res.manager.seamless_size()
+    );
 
-    for key in keys.iter() {
-      // send_key(*key);
-      let chunk = ChunkManager::new_chunk(key, 4, 4, local_res.manager.noise);
-      send_chunk(chunk);
+    if key != player.key {
+      for (entity, _graphics) in &chunk_graphics {
+        commands.entity(entity).despawn_recursive();
+      }
+
+
+      player.prev_key = player.key;
+      player.key = key;
+      let keys = adjacent_keys(&key, 1, true);
+      info!("Initialize {} keys", keys.len());
+
+      for key in keys.iter() {
+        // send_key(*key);
+        let chunk = ChunkManager::new_chunk(key, 4, 4, local_res.manager.noise);
+        send_chunk(chunk);
+      }
     }
 
-    local_res.keys_total = keys.len();
-    local_res.keys_count = 0;
-    local_res.duration = 0.0;
-    local_res.done = false;
 
 
-    for (entity, _graphics) in &chunk_graphics {
-      commands.entity(entity).despawn_recursive();
-    }
+    
   }
+
+
+  // if keyboard_input.just_pressed(KeyCode::Space) {
+  //   let keys = adjacent_keys(&[0, 0, 0], 1, true);
+  //   info!("Initialize {} keys", keys.len());
+
+  //   for key in keys.iter() {
+  //     // send_key(*key);
+  //     let chunk = ChunkManager::new_chunk(key, 4, 4, local_res.manager.noise);
+  //     send_chunk(chunk);
+  //   }
+
+  //   local_res.keys_total = keys.len();
+  //   local_res.keys_count = 0;
+  //   local_res.duration = 0.0;
+  //   local_res.done = false;
+
+
+  //   for (entity, _graphics) in &chunk_graphics {
+  //     commands.entity(entity).despawn_recursive();
+  //   }
+  // }
 }
 
 
@@ -221,7 +264,11 @@ impl Default for LocalResource {
 pub struct ChunkGraphics;
 
 
-
+#[derive(Component, Debug, Clone)]
+pub struct Player {
+  pub prev_key: [i64; 3],
+  pub key: [i64; 3],
+}
 
 
 
