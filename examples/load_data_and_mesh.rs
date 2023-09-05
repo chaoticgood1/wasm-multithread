@@ -89,10 +89,10 @@ fn add_cam(
   // }
   let keys = adjacent_keys(&[0, 0, 0], 1, true);
   for key in keys.iter() {
-    send_key(*key);
+    // send_key(*key);
 
-    // let chunk = ChunkManager::new_chunk(key, 4, 4, manager.noise);
-    // send_chunk(chunk);
+    let chunk = ChunkManager::new_chunk(key, 4, 4, manager.noise);
+    send_chunk(chunk);
   }
   
 }
@@ -104,8 +104,12 @@ fn load_chunks(
   if keyboard_input.just_pressed(KeyCode::Space) {
     let keys = adjacent_keys(&[0, 0, 0], 1, true);
     info!("Initialize {} keys", keys.len());
+
+    let manager = ChunkManager::default();
     for key in keys.iter() {
-      send_key(*key);
+      // send_key(*key);
+      let chunk = ChunkManager::new_chunk(key, 4, 4, manager.noise);
+      send_chunk(chunk);
     }
 
     local_res.keys_total = keys.len();

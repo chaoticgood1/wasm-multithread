@@ -94,13 +94,20 @@ async fn load_data(
   recv_chunk: Receiver<Chunk>,
 ) {
 
-  let r = Rc::new(RefCell::new(Channels { 
-    recv: recv.clone(),
-    recv_chunk: recv_chunk.clone(),
-  }));
+  while let Ok(chunk) = recv_chunk.recv_async().await {
+    console_ln!("load_data {:?}", chunk.key);
+  }
+
+
+
+  // let r = Rc::new(RefCell::new(Channels { 
+  //   recv: recv.clone(),
+  //   recv_chunk: recv_chunk.clone(),
+  // }));
+  let r = Rc::new(RefCell::new(Channels {}));
 
   while let Ok(res) = (
-    ChannelFuture { unit: r.clone(), recv: recv.clone(), recv_chunk: recv_chunk.clone() }
+    ChannelFuture { recv: recv.clone(), recv_chunk: recv_chunk.clone() }
   ).await {
     console_ln!("res {} {}", res.keys.len(), res.chunks.len());
 
@@ -163,6 +170,8 @@ async fn load_data(
     
   }
 
+  console_ln!("Done1");
+
 }
 
 fn compute_voxel(key: [i64; 3]) -> Vec<u8> {
@@ -201,15 +210,15 @@ impl ToString for EventType {
 }
 
 struct Channels {
-  recv: Receiver<[i64; 3]>,
-  recv_chunk: Receiver<Chunk>,
+  // recv: Receiver<[i64; 3]>,
+  // recv_chunk: Receiver<Chunk>,
 }
 
 type ChannerRef = Rc<RefCell<Channels>>;
 
 
 struct ChannelFuture {
-  unit: ChannerRef,
+  // unit: ChannerRef,
   recv: Receiver<[i64; 3]>,
   recv_chunk: Receiver<Chunk>,
 }
@@ -220,6 +229,8 @@ impl Future for ChannelFuture {
   fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
     // let recv = self.unit.borrow().recv.clone();
     // let recv_chunk = self.unit.borrow().recv_chunk.clone();
+
+    console_ln!("Testing");
 
     let recv = self.recv.clone();
     let recv_chunk = self.recv_chunk.clone();
