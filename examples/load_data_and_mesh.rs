@@ -1,5 +1,7 @@
+use bevy::render::mesh::Indices;
+use bevy::render::render_resource::PrimitiveTopology;
 use bevy::{prelude::*, window::PresentMode};
-use bevy_flycam::FlyCam;
+use bevy_flycam::{FlyCam, NoCameraAndGrabPlugin, NoCameraPlayerPlugin};
 use cfg_if::cfg_if;
 use multithread::plugin::Octree;
 use multithread::plugin::PluginResource;
@@ -9,6 +11,7 @@ use voxels::chunk::adjacent_keys;
 use voxels::chunk::chunk_manager::Chunk;
 use voxels::chunk::chunk_manager::ChunkManager;
 use voxels::data::voxel_octree::VoxelOctree;
+use voxels::utils::key_to_world_coord_f32;
 
 
 cfg_if! {
@@ -40,6 +43,7 @@ fn main() {
   }
 
   app
+    .add_plugin(NoCameraPlayerPlugin)
     .insert_resource(LocalResource::default())
     .add_startup_system(add_cam)
     .add_system(load_data)
@@ -49,6 +53,7 @@ fn main() {
 
 fn add_cam(
   mut commands: Commands,
+  local_res: Res<LocalResource>,
 ) {
   commands
     .spawn(Camera3dBundle {
@@ -81,7 +86,6 @@ fn add_cam(
   });
 
 
-  let manager = ChunkManager::default();
   // for _ in 0..20 {
   //   send_key([0, -1, 0]);
     // let chunk = ChunkManager::new_chunk(&[0, 0, 0], 4, 4, manager.noise);
@@ -91,7 +95,7 @@ fn add_cam(
   for key in keys.iter() {
     // send_key(*key);
 
-    let chunk = ChunkManager::new_chunk(key, 4, 4, manager.noise);
+    let chunk = ChunkManager::new_chunk(key, 4, 4, local_res.manager.noise);
     send_chunk(chunk);
   }
   
@@ -100,15 +104,17 @@ fn add_cam(
 fn load_chunks(
   mut local_res: ResMut<LocalResource>,
   keyboard_input: Res<Input<KeyCode>>,
+
+  mut commands: Commands,
+  chunk_graphics: Query<(Entity, &ChunkGraphics)>,
 ) {
   if keyboard_input.just_pressed(KeyCode::Space) {
     let keys = adjacent_keys(&[0, 0, 0], 1, true);
     info!("Initialize {} keys", keys.len());
 
-    let manager = ChunkManager::default();
     for key in keys.iter() {
       // send_key(*key);
-      let chunk = ChunkManager::new_chunk(key, 4, 4, manager.noise);
+      let chunk = ChunkManager::new_chunk(key, 4, 4, local_res.manager.noise);
       send_chunk(chunk);
     }
 
@@ -116,6 +122,11 @@ fn load_chunks(
     local_res.keys_count = 0;
     local_res.duration = 0.0;
     local_res.done = false;
+
+
+    for (entity, _graphics) in &chunk_graphics {
+      commands.entity(entity).despawn_recursive();
+    }
   }
 }
 
@@ -124,6 +135,12 @@ fn load_data(
   plugin_res: Res<PluginResource>,
   mut local_res: ResMut<LocalResource>,
   time: Res<Time>,
+
+  mut commands: Commands,
+  mut meshes: ResMut<Assets<Mesh>>,
+  mut materials: ResMut<Assets<StandardMaterial>>,
+  chunk_graphics: Query<(Entity, &ChunkGraphics)>,
+  
 ) {
   if local_res.keys_count != local_res.keys_total {
     local_res.duration += time.delta_seconds();
@@ -149,10 +166,33 @@ fn load_data(
     send_chunk(chunk);
   }
 
-  for chunk in plugin_res.recv_mesh.drain() {
-    info!("wasm_recv_mesh {:?}", chunk.key);
+  for data in plugin_res.recv_mesh.drain() {
+    info!("wasm_recv_mesh {:?}", data.key);
+
+    let mut render_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    render_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, data.positions.clone());
+    render_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals.clone());
+    render_mesh.set_indices(Some(Indices::U32(data.indices.clone())));
+
+    let mesh_handle = meshes.add(render_mesh);
+    let mut pos = key_to_world_coord_f32(&data.key, local_res.manager.seamless_size());
+
+    let mat = materials.add(Color::rgb(0.7, 0.7, 0.7).into());
+    commands
+      .spawn(MaterialMeshBundle {
+        mesh: mesh_handle,
+        material: mat,
+        transform: Transform::from_translation(pos.into()),
+        ..default()
+      })
+      .insert(ChunkGraphics);
   }
 }
+
+
+
+
+
 
 
 #[derive(Resource)]
@@ -161,6 +201,7 @@ struct LocalResource {
   keys_count: usize,
   keys_total: usize,
   done: bool,
+  manager: ChunkManager,
 }
 
 impl Default for LocalResource {
@@ -170,11 +211,14 @@ impl Default for LocalResource {
       keys_count: 0,
       keys_total: 0,
       done: true,
+      manager: ChunkManager::default(),
     }
   }
 }
 
 
+#[derive(Component)]
+pub struct ChunkGraphics;
 
 
 

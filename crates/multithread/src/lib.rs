@@ -6,7 +6,6 @@ use wasm_mt_pool::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use wasm_mt::utils::{console_ln, fetch_as_arraybuffer, sleep};
-use js_sys::ArrayBuffer;
 use voxels::{chunk::chunk_manager::*, data::{voxel_octree::{MeshData, VoxelMode}, surface_nets::VoxelReuse}};
 use flume::{Sender, Receiver};
 use web_sys::{CustomEvent, HtmlInputElement, CustomEventInit};
@@ -16,12 +15,14 @@ pub mod plugin;
 
 #[wasm_bindgen]
 pub fn app() {
-  let (send_queue, recv_queue) = flume::unbounded();
-  let (send_chunk, recv_chunk) = flume::unbounded();
-
-  recv_key_from_wasm(send_queue);
-  recv_chunk_from_wasm(send_chunk);
+  // let (send_queue, recv_queue) = flume::unbounded();
+  // let (send_chunk, recv_chunk) = flume::unbounded();
+  // recv_key_from_wasm(send_queue);
+  // recv_chunk_from_wasm(send_chunk);
   
+  let (send, recv) = flume::unbounded();
+  recv_data_key_from_wasm(send.clone());
+  recv_data_chunk_from_wasm(send.clone());
 
   spawn_local(async move {
     let ab_js = fetch_as_arraybuffer("crates/multithread/pkg/multithread.js").await.unwrap();
@@ -37,13 +38,12 @@ pub fn app() {
     let pool = ThreadPool::new_with_arraybuffers(threads, ab_js, ab_wasm)
       .and_init().await.unwrap();
 
-    load_data(&pool, recv_queue, recv_chunk).await;
+    // load_data(&pool, recv_queue, recv_chunk).await;
+    load_data_from_wasm(&pool, recv).await;
   });
-
-  
 }
 
-fn recv_key_from_wasm(send: Sender<[i64; 3]>) {
+fn recv_data_key_from_wasm(send: Sender<WasmMessage>) {
   let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
     let data = event.detail().as_string().unwrap();
     let bytes = array_bytes::hex2bytes(data).unwrap();
@@ -55,9 +55,15 @@ fn recv_key_from_wasm(send: Sender<[i64; 3]>) {
       })
       .collect();
     let key: [i64; 3] = a[0..3].try_into().unwrap();
-    let _ = send.send(key);
 
-    console_ln!("recv key {:?}", key);
+    let msg = WasmMessage {
+      key: Some(key),
+      ..Default::default()
+    };
+
+    let _ = send.send(msg);
+
+    console_ln!("from_wasm_key {:?}", key);
   }) as Box<dyn FnMut(CustomEvent)>);
 
   let window = web_sys::window().unwrap();
@@ -69,14 +75,21 @@ fn recv_key_from_wasm(send: Sender<[i64; 3]>) {
   callback.forget();
 }
 
-fn recv_chunk_from_wasm(send: Sender<Chunk>) {
+fn recv_data_chunk_from_wasm(send: Sender<WasmMessage>) {
   let callback = Closure::wrap(Box::new(move |event: CustomEvent | {
     let data = event.detail().as_string().unwrap();
     let bytes = array_bytes::hex2bytes(data).unwrap();
     let chunk: Chunk = bincode::deserialize(&bytes).unwrap();
 
-    console_ln!("calc_chunk {:?}", chunk.key);
-    let _ = send.send(chunk);
+    console_ln!("from wasm chunk {:?}", chunk.key);
+    let msg = WasmMessage {
+      chunk: Some(chunk),
+      ..Default::default()
+    };
+
+    let _ = send.send(msg);
+
+
   }) as Box<dyn FnMut(CustomEvent)>);
 
   let window = web_sys::window().unwrap();
@@ -88,31 +101,18 @@ fn recv_chunk_from_wasm(send: Sender<Chunk>) {
   callback.forget();
 }
 
-async fn load_data(
+async fn load_data_from_wasm(
   pool: &ThreadPool,
-  recv: Receiver<[i64; 3]>,
-  recv_chunk: Receiver<Chunk>,
+  recv: Receiver<WasmMessage>
 ) {
 
-  while let Ok(chunk) = recv_chunk.recv_async().await {
-    console_ln!("load_data {:?}", chunk.key);
-  }
+  while let Ok(msg) = recv.recv_async().await {
+    // console_ln!("load_data_from_wasm {:?}", );
 
+    if msg.key.is_some() {
+      let key = msg.key.unwrap();
+      console_ln!("load_data {:?}", key);
 
-
-  // let r = Rc::new(RefCell::new(Channels { 
-  //   recv: recv.clone(),
-  //   recv_chunk: recv_chunk.clone(),
-  // }));
-  let r = Rc::new(RefCell::new(Channels {}));
-
-  while let Ok(res) = (
-    ChannelFuture { recv: recv.clone(), recv_chunk: recv_chunk.clone() }
-  ).await {
-    console_ln!("res {} {}", res.keys.len(), res.chunks.len());
-
-    for key in res.keys.iter() {
-      let key = key.clone();
       let cb = move |result: Result<JsValue, JsValue>| {
         let r = result.unwrap();
         let ab = r.dyn_ref::<js_sys::ArrayBuffer>().unwrap();
@@ -141,9 +141,9 @@ async fn load_data(
       }, cb);
     }
 
-    for chunk in res.chunks.iter() {
-      let chunk = chunk.clone();
-      // console_ln!("process_chunk2 {:?}", chunk.key);
+    if msg.chunk.is_some() {
+      let chunk = msg.chunk.unwrap();
+      console_ln!("load_chunk {:?}", chunk.clone().key);
 
       let cb = move |result: Result<JsValue, JsValue>| {
         let r = result.unwrap();
@@ -167,10 +167,8 @@ async fn load_data(
         Ok(wasm_mt::utils::u8arr_from_vec(&encoded).buffer().into())
       }, cb);
     }
-    
-  }
 
-  console_ln!("Done1");
+  }
 
 }
 
@@ -265,4 +263,10 @@ impl Future for ChannelFuture {
 struct Res {
   keys: Vec<[i64; 3]>,
   chunks: Vec<Chunk>,
+}
+
+#[derive(Default)]
+struct WasmMessage {
+  key: Option<[i64; 3]>,
+  chunk: Option<Chunk>,
 }
